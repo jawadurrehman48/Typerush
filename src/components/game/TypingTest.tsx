@@ -1,0 +1,175 @@
+"use client";
+
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { getRandomParagraph } from '@/lib/words';
+import { cn } from '@/lib/utils';
+import { RefreshCw, Zap, Target } from 'lucide-react';
+import Link from 'next/link';
+
+type GameStatus = 'waiting' | 'running' | 'finished';
+
+const TypingTest = () => {
+  const [text, setText] = useState('');
+  const [userInput, setUserInput] = useState('');
+  const [status, setStatus] = useState<GameStatus>('waiting');
+  const [startTime, setStartTime] = useState<number | null>(null);
+  const [endTime, setEndTime] = useState<number | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const newGame = () => {
+    setText(getRandomParagraph());
+    setUserInput('');
+    setStatus('waiting');
+    setStartTime(null);
+    setEndTime(null);
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  };
+
+  useEffect(() => {
+    newGame();
+  }, []);
+
+  useEffect(() => {
+    if (status === 'running' && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [status]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+
+    if (status === 'waiting' && value.length > 0) {
+      setStatus('running');
+      setStartTime(Date.now());
+    }
+
+    if (status !== 'finished') {
+      setUserInput(value);
+
+      if (value.length === text.length) {
+        setStatus('finished');
+        setEndTime(Date.now());
+      }
+    }
+  };
+
+  const characters = useMemo(() => {
+    return text.split('').map((char, index) => {
+      let state: 'correct' | 'incorrect' | 'untyped' = 'untyped';
+      if (index < userInput.length) {
+        state = char === userInput[index] ? 'correct' : 'incorrect';
+      }
+      return { char, state };
+    });
+  }, [text, userInput]);
+
+  const { wpm, accuracy } = useMemo(() => {
+    if (status !== 'running' && status !== 'finished') return { wpm: 0, accuracy: 0 };
+    
+    const durationInMinutes = ((endTime ?? Date.now()) - (startTime ?? Date.now())) / 1000 / 60;
+    if (durationInMinutes === 0) return { wpm: 0, accuracy: 0 };
+
+    const correctChars = userInput.split('').filter((char, index) => char === text[index]).length;
+    
+    const wpm = Math.round((correctChars / 5) / durationInMinutes);
+
+    const typedChars = userInput.length;
+    const accuracy = typedChars > 0 ? Math.round((correctChars / typedChars) * 100) : 0;
+    
+    return { wpm, accuracy };
+  }, [userInput, text, startTime, endTime, status]);
+
+  return (
+    <Card className="w-full relative shadow-lg">
+      <CardContent className="p-6">
+        <div className="flex justify-between items-center mb-4">
+          <div className="flex gap-4 sm:gap-8">
+            <div className="flex items-center gap-2 text-accent">
+              <Zap className="h-5 w-5" />
+              <span className="text-xl sm:text-2xl font-bold font-mono">{wpm} WPM</span>
+            </div>
+            <div className="flex items-center gap-2 text-primary">
+              <Target className="h-5 w-5" />
+              <span className="text-xl sm:text-2xl font-bold font-mono">{accuracy}%</span>
+            </div>
+          </div>
+          <Button variant="ghost" size="icon" onClick={newGame}>
+            <RefreshCw className="h-5 w-5" />
+          </Button>
+        </div>
+
+        <div
+          className="text-2xl tracking-wider leading-relaxed text-left p-4 rounded-md bg-muted/20 relative"
+          onClick={() => inputRef.current?.focus()}
+        >
+          <input
+            ref={inputRef}
+            type="text"
+            value={userInput}
+            onChange={handleInputChange}
+            className="absolute inset-0 opacity-0 cursor-text"
+            autoCapitalize="none"
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck="false"
+            disabled={status === 'finished'}
+          />
+          {characters.map(({ char, state }, index) => (
+            <span
+              key={index}
+              className={cn({
+                'text-muted-foreground': state === 'untyped',
+                'text-foreground': state === 'correct',
+                'text-destructive': state === 'incorrect',
+                'relative': userInput.length === index,
+              })}
+            >
+              {userInput.length === index && (
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-sm bg-primary/50 opacity-75"></span>
+              )}
+               {char === ' ' && state === 'incorrect' ? (
+                 <span className="bg-destructive/20 rounded-[2px]"> </span>
+               ) : (
+                 char
+               )}
+            </span>
+          ))}
+          {status === 'waiting' && (
+            <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm rounded-md">
+              <p className="text-lg text-primary animate-pulse">Start typing to begin...</p>
+            </div>
+          )}
+        </div>
+        {status === 'finished' && (
+          <div className="mt-6 text-center">
+            <h2 className="text-3xl font-bold text-primary mb-2">Race Complete!</h2>
+            <div className="flex justify-center gap-8 mb-6">
+                <div className="text-accent">
+                    <p className="text-sm text-muted-foreground">WPM</p>
+                    <p className="text-4xl font-bold font-mono">{wpm}</p>
+                </div>
+                <div className="text-primary">
+                    <p className="text-sm text-muted-foreground">Accuracy</p>
+                    <p className="text-4xl font-bold font-mono">{accuracy}%</p>
+                </div>
+            </div>
+            <div className="flex justify-center gap-4">
+              <Button onClick={newGame} size="lg" className="bg-accent text-accent-foreground hover:bg-accent/90">
+                <RefreshCw className="mr-2 h-4 w-4" /> Play Again
+              </Button>
+              <Button asChild variant="outline" size="lg">
+                <Link href="/leaderboard">View Leaderboard</Link>
+              </Button>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+export default TypingTest;

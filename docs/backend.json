@@ -1,0 +1,181 @@
+{
+  "entities": {
+    "UserProfile": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserProfile",
+      "type": "object",
+      "description": "Represents a user's profile information.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user profile."
+        },
+        "email": {
+          "type": "string",
+          "description": "User's email address.",
+          "format": "email"
+        },
+        "username": {
+          "type": "string",
+          "description": "User's chosen username."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the user profile was created.",
+          "format": "date-time"
+        },
+        "lastLogin": {
+          "type": "string",
+          "description": "Timestamp indicating when the user last logged in.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "username",
+        "createdAt"
+      ]
+    },
+    "GameScore": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "GameScore",
+      "type": "object",
+      "description": "Represents a single game score record.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the game score record."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to UserProfile. (Relationship: UserProfile 1:N GameScore)"
+        },
+        "score": {
+          "type": "number",
+          "description": "The user's score in this game."
+        },
+        "wpm": {
+          "type": "number",
+          "description": "The user's words per minute (WPM) in this game."
+        },
+        "accuracy": {
+          "type": "number",
+          "description": "The user's accuracy percentage in this game."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Timestamp indicating when the game was played.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "score",
+        "wpm",
+        "accuracy",
+        "timestamp"
+      ]
+    },
+    "LeaderboardEntry": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "LeaderboardEntry",
+      "type": "object",
+      "description": "Represents an entry in the leaderboard.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the leaderboard entry."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to UserProfile. (Relationship: UserProfile 1:1 LeaderboardEntry)"
+        },
+        "score": {
+          "type": "number",
+          "description": "The user's current high score on the leaderboard."
+        },
+        "rank": {
+          "type": "number",
+          "description": "The user's rank on the leaderboard."
+        },
+        "lastUpdated": {
+          "type": "string",
+          "description": "Timestamp indicating when the leaderboard entry was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "score",
+        "rank",
+        "lastUpdated"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "UserProfile",
+          "schema": {
+            "$ref": "#/backend/entities/UserProfile"
+          },
+          "description": "Stores user profile information. Path-based ownership ensures only the authenticated user can access their profile.  `userId` MUST equal `request.auth.uid`.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user, corresponding to their Firebase Auth UID."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/game_scores/{gameScoreId}",
+        "definition": {
+          "entityName": "GameScore",
+          "schema": {
+            "$ref": "#/backend/entities/GameScore"
+          },
+          "description": "Stores game scores for a specific user. Path-based ownership ensures only the authenticated user can access their game scores. `userId` MUST equal `request.auth.uid`.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user, corresponding to their Firebase Auth UID."
+            },
+            {
+              "name": "gameScoreId",
+              "description": "The unique identifier for the individual game score record."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/leaderboard/{leaderboardEntryId}",
+        "definition": {
+          "entityName": "LeaderboardEntry",
+          "schema": {
+            "$ref": "#/backend/entities/LeaderboardEntry"
+          },
+          "description": "Stores leaderboard entries.  Writes are restricted to a trusted Cloud Function. List operations are generally allowed.",
+          "params": [
+            {
+              "name": "leaderboardEntryId",
+              "description": "The unique identifier for the leaderboard entry."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to support user authentication, game score storage, and leaderboard functionality for the TypeRush application. It emphasizes authorization independence and clear security rules.  \n\nUserProfile Data: User profiles are stored in `/users/{userId}` using path-based ownership. This is the standard and preferred method for private user data.  This enables simple, secure rules based on `request.auth.uid == userId`.\n\nGameScore Data: Game scores are stored in a subcollection `/users/{userId}/game_scores/{gameScoreId}`. This hierarchical structure maintains the `User 1:N GameScore` relationship. Security rules can efficiently validate that `request.auth.uid == userId` to ensure only the authenticated user can create, read, update, or delete their own game scores.\n\nLeaderboard Data: Leaderboard entries are stored in the `/leaderboard/{leaderboardEntryId}` collection. Each entry contains the `userId`, `score`, `rank`, and `lastUpdated`. The Update Leaderboard Cloud Function will manage writes to the collection.  Listing the leaderboard for read access is simple and secure.\n\nAnalytics:  No specific analytics data structure is defined, but a collection like `/analytics/{analyticEventId}` could be used to store aggregated data points. Security would depend on the specific data being collected (e.g., aggregated stats could be world-readable).\n\nAuthorization Independence and QAPs:\n\nAuthorization Independence is achieved by avoiding `get()` calls in the security rules. The primary mechanism is the path-based ownership model for UserProfile and GameScore data.  The path itself encodes the authorization context.\n\nQAPs (Rules are not Filters) are supported due to the structural segregation. User profiles and game scores are stored in dedicated collections with clear ownership, simplifying the security rules for `list` operations.  The leaderboard collection is world-readable but write-protected via Cloud Functions, enabling secure listing of leaderboard entries."
+  }
+}

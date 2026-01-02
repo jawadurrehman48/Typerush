@@ -1,0 +1,143 @@
+/**
+ * Core Philosophy: This ruleset enforces a strict user-ownership model for all user-generated content.
+ * All private user data, including profiles and game scores, is accessible only by the authenticated
+ * user who owns it. Public data, such as the leaderboard, is globally readable but write-protected
+ * from client applications, with mutations expected to be handled by a trusted backend service (e.g., Cloud Functions).
+ *
+ * Data Structure:
+ * - /users/{userId}: Stores private UserProfile documents.
+ * - /users/{userId}/game_scores/{gameScoreId}: A subcollection storing private game scores for each user.
+ * - /leaderboard/{leaderboardEntryId}: A top-level collection for public leaderboard data.
+ *
+ * Key Security Decisions:
+ * - User Isolation: Users can only access their own data tree under `/users/{userId}`. Listing all users is explicitly disallowed to protect user privacy.
+ * - Public Read-Only Data: The `/leaderboard` collection is publicly readable by anyone but cannot be modified by any client. This is a secure pattern for displaying public information managed by the backend.
+ * - Backend-Managed Writes: All writes to the `/leaderboard` collection are denied. This assumes a Cloud Function or other trusted server environment is responsible for calculating and updating ranks.
+ * - Path-Based Authorization: Authorization is primarily based on the `{userId}` wildcard in the path, which is fast, secure, and avoids costly `get()` calls in rules.
+ *
+ * Denormalization for Authorization: The hierarchical structure `/users/{userId}/...` is a form of authorization denormalization.
+ * The ownership context (`userId`) is embedded directly in the path, allowing for simple and performant rules like `request.auth.uid == userId`.
+ *
+ * Structural Segregation: Private data (`game_scores`) is structurally segregated from public data (`leaderboard`) by placing them in different collections.
+ * This makes list operations safe and efficient. Listing a user's own scores is secure, and listing the public leaderboard is also secure.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ------------------------------------------------------------------------
+    // Helper Functions
+    // ------------------------------------------------------------------------
+
+    /**
+     * Checks if the user is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * Checks if the currently authenticated user's UID matches the provided userId.
+     * This is the primary function for verifying document ownership.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * Checks for ownership on an existing document. Used for update/delete operations
+     * to prevent acting on documents that don't exist.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    // --- Data Integrity Validation Functions ---
+
+    /**
+     * On profile creation, validates that the document's internal 'id' field
+     * matches the user's auth UID. This enforces a critical link between the
+     * auth identity and the database record.
+     */
+    function isCreatingOwnProfile(userId) {
+      return request.resource.data.id == userId;
+    }
+
+    /**
+     * On profile update, ensures the 'id' field cannot be changed. This preserves
+     * the immutable link between the document and the user's auth UID.
+     */
+    function isProfileDataConsistent() {
+      return request.resource.data.id == resource.data.id;
+    }
+
+    /**
+     * On game score creation, validates that the document's internal 'userId' field
+     * matches the owner's auth UID from the path.
+     */
+    function isCreatingOwnGameScore(userId) {
+      return request.resource.data.userId == userId;
+    }
+
+    /**
+     * On game score update, ensures the 'userId' field cannot be changed,
+     * preventing a score from being reassigned to another user.
+     */
+    function isGameScoreDataConsistent() {
+      return request.resource.data.userId == resource.data.userId;
+    }
+
+    // ------------------------------------------------------------------------
+    // Collection Rules
+    // ------------------------------------------------------------------------
+
+    /**
+     * @description Manages user profile documents.
+     * @path /users/{userId}
+     * @allow (create) An authenticated user can create their own profile document.
+     * @allow (get, update, delete) The owner of the profile can read, update, or delete it.
+     * @deny (list) No user can list all user profiles.
+     * @deny (get) A user cannot read another user's profile.
+     * @principle Restricts access to a user's own data tree and enforces relational integrity.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId) && isCreatingOwnProfile(userId);
+      allow update: if isExistingOwner(userId) && isProfileDataConsistent();
+      allow delete: if isExistingOwner(userId);
+
+      /**
+       * @description Manages game score records for a specific user.
+       * @path /users/{userId}/game_scores/{gameScoreId}
+       * @allow (create) The user can add a new game score for themselves.
+       * @allow (list, get) The user can list and read their own past game scores.
+       * @deny (get) A user cannot read another user's game scores.
+       * @deny (list) A user cannot list another user's game scores.
+       * @principle Enforces document ownership within a user-specific subcollection.
+       */
+      match /game_scores/{gameScoreId} {
+        allow get: if isOwner(userId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isCreatingOwnGameScore(userId);
+        allow update: if isExistingOwner(userId) && isGameScoreDataConsistent();
+        allow delete: if isExistingOwner(userId);
+      }
+    }
+
+    /**
+     * @description Manages public leaderboard entries.
+     * @path /leaderboard/{leaderboardEntryId}
+     * @allow (get, list) Anyone, including unauthenticated users, can read the leaderboard.
+     * @deny (create, update, delete) No client can write to the leaderboard; it is managed by a trusted backend.
+     * @principle Secures a collection for public consumption while centralizing writes to a trusted server process.
+     */
+    match /leaderboard/{leaderboardEntryId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+  }
+}

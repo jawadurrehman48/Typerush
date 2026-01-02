@@ -29,12 +29,12 @@ export default function RootLayout({
       </head>
       <body
         className={cn(
-          'min-h-screen bg-background font-headline antialiased',
+          'min-h-screen bg-background font-body antialiased',
           poppins.variable
         )}
         suppressHydrationWarning
       >
-        <main className="flex-1">{children}</main>
+        {children}
         <Toaster />
       </body>
     </html>

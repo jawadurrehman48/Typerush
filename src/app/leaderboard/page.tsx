@@ -10,6 +10,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
+import Header from '@/components/layout/Header';
 
 const leaderboardData = [
   { rank: 1, player: 'Cypher', wpm: 152, accuracy: '98%', date: '2024-05-20', avatar: PlaceHolderImages[0].imageUrl },
@@ -33,6 +34,8 @@ const rankColor = (rank: number) => {
 
 export default function LeaderboardPage() {
   return (
+    <>
+    <Header />
     <div className="container mx-auto px-4 py-12 sm:px-6 lg:px-8">
       <h1 className="mb-8 text-center text-4xl font-bold tracking-tighter text-primary sm:text-5xl">
         Top Rushers
@@ -83,5 +86,6 @@ export default function LeaderboardPage() {
         </CardContent>
       </Card>
     </div>
+    </>
   );
 }

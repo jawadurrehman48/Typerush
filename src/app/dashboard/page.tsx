@@ -21,6 +21,7 @@ import {
   ChartTooltipContent,
 } from '@/components/ui/chart';
 import { Bar, BarChart as RechartsBarChart, XAxis, YAxis } from 'recharts';
+import Header from '@/components/layout/Header';
 
 const chartData = [
   { date: '2024-05-01', wpm: 75 },
@@ -41,6 +42,8 @@ const gameHistory = [
 
 export default function DashboardPage() {
   return (
+    <>
+    <Header />
     <div className="container mx-auto px-4 py-12 sm:px-6 lg:px-8">
       <h1 className="mb-8 text-3xl font-bold tracking-tighter text-primary sm:text-4xl">
         Your Dashboard
@@ -151,5 +154,6 @@ export default function DashboardPage() {
         </Card>
       </div>
     </div>
+    </>
   );
 }

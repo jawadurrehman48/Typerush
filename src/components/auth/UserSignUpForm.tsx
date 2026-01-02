@@ -4,12 +4,16 @@ import * as React from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
+import { useRouter } from 'next/navigation';
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { doc } from 'firebase/firestore';
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "@/hooks/use-toast"
+import { useAuth, useFirestore, setDocumentNonBlocking } from "@/firebase";
 
 interface UserSignUpFormProps extends React.HTMLAttributes<HTMLDivElement> {}
 
@@ -29,6 +33,10 @@ type UserFormValue = z.infer<typeof formSchema>
 
 export function UserSignUpForm({ className, ...props }: UserSignUpFormProps) {
   const [isLoading, setIsLoading] = React.useState<boolean>(false)
+  const auth = useAuth();
+  const firestore = useFirestore();
+  const router = useRouter();
+
   const {
     register,
     handleSubmit,
@@ -38,19 +46,38 @@ export function UserSignUpForm({ className, ...props }: UserSignUpFormProps) {
   })
 
   async function onSubmit(data: UserFormValue) {
-    setIsLoading(true)
-    toast({
-      title: "Creating account...",
-      description: "Please wait while we set things up.",
-    })
+    setIsLoading(true);
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
+      const user = userCredential.user;
 
-    setTimeout(() => {
-      setIsLoading(false)
+      if (user) {
+        const userProfile = {
+          id: user.uid,
+          email: user.email,
+          username: data.username,
+          fullName: data.fullName,
+          createdAt: new Date().toISOString(),
+        };
+
+        const userDocRef = doc(firestore, "users", user.uid);
+        setDocumentNonBlocking(userDocRef, userProfile, { merge: true });
+
+        toast({
+          title: "Account Created",
+          description: "You have been successfully signed up.",
+        });
+        router.push('/game');
+      }
+    } catch (error: any) {
       toast({
-        title: "Success!",
-        description: "Your account has been created.",
-      })
-    }, 3000)
+        variant: "destructive",
+        title: "Sign Up Failed",
+        description: error.message || "An unexpected error occurred.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   return (

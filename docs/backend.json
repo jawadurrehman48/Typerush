@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "UserProfile": {
@@ -28,13 +29,18 @@
           "type": "string",
           "description": "Timestamp indicating when the user last logged in.",
           "format": "date-time"
+        },
+        "fullName": {
+          "type": "string",
+          "description": "User's full name."
         }
       },
       "required": [
         "id",
         "email",
         "username",
-        "createdAt"
+        "createdAt",
+        "fullName"
       ]
     },
     "GameScore": {
@@ -118,7 +124,8 @@
   "auth": {
     "providers": [
       "password",
-      "anonymous"
+      "anonymous",
+      "google.com"
     ]
   },
   "firestore": {

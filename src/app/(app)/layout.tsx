@@ -12,11 +12,11 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-    title: 'TypeRush',
-    description: 'The ultimate typing challenge.',
+  title: 'TypeRush',
+  description: 'The ultimate typing challenge.',
 };
 
-export default function AuthLayout({
+export default function AppLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;

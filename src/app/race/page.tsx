@@ -19,7 +19,6 @@ export default function RacePage() {
   }, []);
 
   useEffect(() => {
-    // Redirect if not loading and no user is found
     if (isClient && !isUserLoading && !user) {
       router.push('/');
     }
@@ -32,22 +31,19 @@ export default function RacePage() {
   const handleLeaveRace = () => {
     setRaceId(null);
   };
-
-  if (isUserLoading || !isClient) {
-    return (
-      <>
-        <Header />
+  
+  // Conditionally render the content *inside* the main return block
+  // to avoid changing the hook execution order.
+  const renderContent = () => {
+    if (isUserLoading || !isClient) {
+      return (
         <div className="flex h-[80vh] items-center justify-center">
           <div className="h-16 w-16 animate-spin rounded-full border-4 border-dashed border-primary"></div>
         </div>
-      </>
-    );
-  }
-
-  return (
-    <>
-      <Header />
-      <div className="container mx-auto flex flex-col items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
+      );
+    }
+    
+    return (
         <div className="w-full max-w-4xl">
           {raceId ? (
             <Race raceId={raceId} onLeave={handleLeaveRace} />
@@ -57,12 +53,20 @@ export default function RacePage() {
                 Race against others
               </h1>
               <p className="mb-12 text-center text-lg text-muted-foreground md:text-xl">
-                Create a private race and challenge your friends, or join an open race.
+                Create a private race and challenge your friends, or join a race by ID.
               </p>
               <RaceLobby onJoinRace={handleJoinRace} />
             </>
           )}
         </div>
+    );
+  }
+
+  return (
+    <>
+      <Header />
+      <div className="container mx-auto flex flex-col items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
+        {renderContent()}
       </div>
     </>
   );

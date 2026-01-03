@@ -234,7 +234,7 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
   }
 
   // Final Results View
-  if (status === 'finished') {
+  if (raceData?.winnerId || status === 'finished') {
     return (
         <Card className="w-full border-2 shadow-lg">
             <CardContent className="p-6">
@@ -423,3 +423,5 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
 };
 
 export default Race;
+
+    

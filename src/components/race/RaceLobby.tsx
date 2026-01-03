@@ -3,8 +3,6 @@
 import { useState } from 'react';
 import {
   doc,
-  getDoc,
-  setDoc,
   runTransaction,
   serverTimestamp,
   addDoc,
@@ -17,6 +15,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { getRandomParagraph } from '@/lib/paragraphs';
 import { toast } from '@/hooks/use-toast';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Swords, LogIn } from 'lucide-react';
 
 type RaceLobbyProps = {
   onJoinRace: (raceId: string) => void;
@@ -145,49 +145,61 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
   };
 
   return (
-    <div className="grid gap-8 md:grid-cols-2">
-         <Card>
-        <CardHeader>
-          <CardTitle>Create a New Race</CardTitle>
-          <CardDescription>Start a new race and invite your friends.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="race-name">Race Name</Label>
-            <Input
-              id="race-name"
-              placeholder="e.g., Friday Night Typing"
-              value={raceName}
-              onChange={(e) => setRaceName(e.target.value)}
-              disabled={isCreating}
-            />
-          </div>
-          <Button onClick={createRace} disabled={isCreating || !userProfile} className="w-full">
-            {isCreating ? "Creating..." : "Create and Join Race"}
-          </Button>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-            <CardTitle>Join a Race</CardTitle>
-            <CardDescription>Enter the Race ID you received from a friend.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-            <div className="space-y-2">
-                <Label htmlFor="join-race-id">Race ID</Label>
+    <Card className="w-full max-w-lg mx-auto">
+      <CardContent className="p-0">
+        <Tabs defaultValue="create" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 h-14 rounded-t-lg rounded-b-none">
+            <TabsTrigger value="create" className="h-full text-md font-semibold flex gap-2 items-center">
+              <Swords className="h-5 w-5" /> Create Race
+            </TabsTrigger>
+            <TabsTrigger value="join" className="h-full text-md font-semibold flex gap-2 items-center">
+              <LogIn className="h-5 w-5" /> Join Race
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="create" className="p-6">
+            <CardHeader className="p-0 mb-4">
+              <CardTitle>Create a New Race</CardTitle>
+              <CardDescription>Start a new race and invite your friends.</CardDescription>
+            </CardHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="race-name">Race Name</Label>
                 <Input
-                id="join-race-id"
-                placeholder="Enter Race ID"
-                value={joinRaceId}
-                onChange={(e) => setJoinRaceId(e.target.value)}
-                disabled={isJoining}
+                  id="race-name"
+                  placeholder="e.g., Friday Night Typing"
+                  value={raceName}
+                  onChange={(e) => setRaceName(e.target.value)}
+                  disabled={isCreating}
                 />
+              </div>
+              <Button onClick={createRace} disabled={isCreating || !userProfile} className="w-full">
+                {isCreating ? "Creating..." : "Create and Join Race"}
+              </Button>
             </div>
-            <Button onClick={joinRace} disabled={isJoining || !userProfile} className="w-full">
-                {isJoining ? "Joining..." : "Join Race"}
-            </Button>
-        </CardContent>
-      </Card>
-    </div>
+          </TabsContent>
+          <TabsContent value="join" className="p-6">
+             <CardHeader className="p-0 mb-4">
+                <CardTitle>Join a Race</CardTitle>
+                <CardDescription>Enter the Race ID you received from a friend.</CardDescription>
+            </CardHeader>
+            <div className="space-y-4">
+                <div className="space-y-2">
+                    <Label htmlFor="join-race-id">Race ID</Label>
+                    <Input
+                    id="join-race-id"
+                    placeholder="Enter Race ID"
+                    value={joinRaceId}
+                    onChange={(e) => setJoinRaceId(e.target.value)}
+                    disabled={isJoining}
+                    />
+                </div>
+                <Button onClick={joinRace} disabled={isJoining || !userProfile} className="w-full">
+                    {isJoining ? "Joining..." : "Join Race"}
+                </Button>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </CardContent>
+    </Card>
   );
 }

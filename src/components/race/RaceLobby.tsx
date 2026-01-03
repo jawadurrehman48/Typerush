@@ -9,7 +9,7 @@ import {
   addDoc,
   serverTimestamp,
 } from 'firebase/firestore';
-import { useCollection, useFirestore, useUser } from '@/firebase';
+import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -41,7 +41,7 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
   const { user, isUserLoading } = useUser();
   const racesRef = collection(firestore, 'races');
 
-  const memoizedQuery = useMemo(() => 
+  const memoizedQuery = useMemoFirebase(() => 
     query(racesRef, where('status', '==', 'waiting')),
    [racesRef]);
 
@@ -139,3 +139,5 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
     </Card>
   );
 }
+
+    

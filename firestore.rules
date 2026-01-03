@@ -170,12 +170,7 @@ service cloud.firestore {
      * @path        /leaderboard/{leaderboardEntryId}
      */
     match /leaderboard/{leaderboardEntryId} {
-      allow get: if true;
-      // Allow two types of list queries:
-      // 1. Unauthenticated users can list top scores (for global leaderboard page).
-      // 2. Authenticated users can list their OWN scores (for their dashboard).
-      allow list: if (request.auth == null && request.query.limit <= 20) || 
-                   (isSignedIn() && request.query.where[0][2] == request.auth.uid);
+      allow get, list: if true;
       allow create: if isSignedIn() && isCreatingValidLeaderboardEntry();
       allow update: if isExistingOwner(resource.data.userId) && isUpdatingValidLeaderboardEntry();
       allow delete: if isExistingOwner(resource.data.userId);

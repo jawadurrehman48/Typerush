@@ -133,14 +133,24 @@ service cloud.firestore {
 
     /**
      * Validates an update to a Race document.
-     * Only allows the host to change the status or winner.
-     * Other fields like id, host, and createdAt must remain immutable.
+     * Allows the host to change status or winner.
+     * Allows anyone to increment player count (for joining).
      */
     function isUpdatingValidRace(raceId) {
-      return isRaceHost(raceId)
-          && request.resource.data.id == resource.data.id
-          && request.resource.data.host == resource.data.host
-          && request.resource.data.createdAt == resource.data.createdAt;
+      let incomingData = request.resource.data;
+      let existingData = resource.data;
+
+      // Allow a player to join by incrementing the player count
+      let isJoining = incomingData.diff(existingData).affectedKeys().hasOnly(['playerCount'])
+                      && incomingData.playerCount == existingData.playerCount + 1;
+
+      // Allow the host to update the race
+      let isHostUpdate = isRaceHost(raceId)
+          && incomingData.id == existingData.id
+          && incomingData.host == existingData.host
+          && incomingData.createdAt == existingData.createdAt;
+
+      return isHostUpdate || isJoining;
     }
 
     //----------------------------------------------------------------//
@@ -184,7 +194,7 @@ service cloud.firestore {
       allow get: if true;
       allow list: if true;
       allow create: if isSignedIn() && isCreatingValidRace();
-      allow update: if isRaceHost(raceId) && isUpdatingValidRace(raceId);
+      allow update: if isUpdatingValidRace(raceId);
       allow delete: if isRaceHost(raceId);
 
       /**

@@ -6,9 +6,9 @@ import {
   doc,
   runTransaction,
   serverTimestamp,
-  addDoc,
   collection,
   setDoc,
+  getDoc,
 } from 'firebase/firestore';
 import { useFirestore, useUser, useUserProfile } from '@/firebase';
 import { Button } from '@/components/ui/button';
@@ -24,6 +24,22 @@ type RaceLobbyProps = {
   onJoinRace: (raceId: string) => void;
 };
 
+// Generates a unique 4-digit race ID.
+const generateUniqueRaceId = async (firestore: any): Promise<string> => {
+    let raceId;
+    let isUnique = false;
+    while (!isUnique) {
+        raceId = Math.floor(1000 + Math.random() * 9000).toString();
+        const raceDocRef = doc(firestore, 'races', raceId);
+        const docSnap = await getDoc(raceDocRef);
+        if (!docSnap.exists()) {
+            isUnique = true;
+        }
+    }
+    return raceId!;
+};
+
+
 export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
   const firestore = useFirestore();
   const { user } = useUser();
@@ -36,7 +52,7 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
   const [isJoining, setIsJoining] = useState(false);
 
   const createRace = async () => {
-    if (!user || !userProfile || !raceName.trim()) {
+    if (!user || !userProfile || !raceName.trim() || !firestore) {
       toast({
         variant: "destructive",
         title: "Error",
@@ -49,8 +65,10 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
 
     try {
       const { paragraph } = await getRandomParagraph(firestore);
+      const newRaceId = await generateUniqueRaceId(firestore);
       
       const newRace = {
+        id: newRaceId,
         name: raceName.trim(),
         host: userProfile.username,
         paragraphText: paragraph,
@@ -61,14 +79,23 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
         playerCount: 0, 
       };
 
-      const racesCollection = collection(firestore, 'races');
-      const raceDocRef = await addDoc(racesCollection, newRace);
-      const newRaceId = raceDocRef.id;
+      const raceDocRef = doc(firestore, 'races', newRaceId);
+      await setDoc(raceDocRef, newRace);
       
       toast({
         title: "Race Created!",
-        description: `Your race ID is ${newRaceId}. You can now join it.`,
+        description: `Your race ID is ${newRaceId}. Share it with friends!`,
         duration: 9000,
+        action: (
+            <div className="flex gap-2">
+                 <Button size="sm" onClick={() => joinRace(newRaceId)}>
+                    Join Race
+                </Button>
+                <Button variant="secondary" size="sm" onClick={() => navigator.clipboard.writeText(newRaceId)}>
+                    Copy ID
+                </Button>
+            </div>
+        ),
       });
       setRaceName(''); // Clear input after creation
     } catch (error: any) {
@@ -82,8 +109,9 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
     }
   };
 
-  const joinRace = async () => {
-    if (!joinRaceId.trim() || !user || !userProfile) {
+  const joinRace = async (idToJoin?: string) => {
+    const finalRaceId = (idToJoin || joinRaceId).trim();
+    if (!finalRaceId || !user || !userProfile || !firestore) {
       toast({
         variant: 'destructive',
         title: 'Error',
@@ -94,7 +122,7 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
     setIsJoining(true);
   
     try {
-      const raceDocRef = doc(firestore, 'races', joinRaceId.trim());
+      const raceDocRef = doc(firestore, 'races', finalRaceId);
   
       await runTransaction(firestore, async (transaction) => {
         const raceSnap = await transaction.get(raceDocRef);
@@ -108,7 +136,7 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
             throw new Error('This race has already started or is finished.');
         }
 
-        const playerDocRef = doc(firestore, 'races', joinRaceId.trim(), 'players', user.uid);
+        const playerDocRef = doc(firestore, 'races', finalRaceId, 'players', user.uid);
         const playerSnap = await transaction.get(playerDocRef);
 
         if (!playerSnap.exists()) {
@@ -127,7 +155,7 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
         }
       });
   
-      onJoinRace(joinRaceId.trim());
+      onJoinRace(finalRaceId);
   
     } catch (error: any) {
       toast({
@@ -183,13 +211,13 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
                     <Label htmlFor="join-race-id">Race ID</Label>
                     <Input
                     id="join-race-id"
-                    placeholder="Enter Race ID"
+                    placeholder="Enter 4-digit Race ID"
                     value={joinRaceId}
                     onChange={(e) => setJoinRaceId(e.target.value)}
                     disabled={isJoining}
                     />
                 </div>
-                <Button onClick={joinRace} disabled={isJoining || !userProfile} className="w-full">
+                <Button onClick={() => joinRace()} disabled={isJoining || !userProfile} className="w-full">
                     {isJoining ? "Joining..." : "Join Race"}
                 </Button>
             </div>
@@ -199,3 +227,5 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
     </Card>
   );
 }
+
+    

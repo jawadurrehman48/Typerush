@@ -1,0 +1,238 @@
+
+/**
+ * Core Philosophy: This ruleset enforces a strict user-ownership model for sensitive user data
+ * and a public-read/owner-write model for shared, competitive data. The primary goal is to
+ * protect user privacy while enabling public features like leaderboards.
+ *
+ * Data Structure:
+ * - /users/{userId}: Contains private UserProfile documents, keyed by the user's auth UID.
+ * - /leaderboard/{leaderboardEntryId}: A global collection of all game scores, designed for
+ *   public consumption.
+ * - /races/{raceId}: Contains documents for multiplayer races.
+ * - /races/{raceId}/players/{userId}: Contains player-specific data for a given race.
+ * - /paragraphs/{paragraphId}: Contains text snippets for the typing test.
+ *
+ * Key Security Decisions:
+ * - User Enumeration is Disallowed: The top-level `/users` collection is not listable,
+ *   preventing malicious actors from scraping all user profiles.
+ * - Strict Profile Ownership: A user can only access and modify their own document within
+ *   the `/users` collection.
+ * - Public Leaderboard & Races: The `/leaderboard` and `/races` collections are publicly readable
+ *   by anyone, including unauthenticated guests, to allow for displaying high scores and open games.
+ * - Data Integrity: Users can only create, update, or delete entries (like leaderboard scores
+ *   or race data) that belong to them, enforced by checking a `userId` field or host status.
+ * - Public Paragraphs: The `/paragraphs` collection is publicly readable so that any user or
+ *   guest can start a typing test. Writes should only be done via trusted server-side code (e.g. seeding script).
+ *
+ * Denormalization for Authorization:
+ * - The `LeaderboardEntry` document contains a `userId` field. This is a deliberate design
+ *   choice that allows security rules to verify ownership for write operations without needing
+ *   a slow and costly `get()` call to another document. This makes the rules faster and more
+ *   secure.
+ *
+ * Structural Segregation:
+ * - Private data (`UserProfile`) and public data (`LeaderboardEntry`, `Race`) are stored in separate
+ *   top-level collections. This is a best practice that simplifies rules for list operations
+ *   and improves query performance and security, preventing accidental exposure of private data.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    //----------------------------------------------------------------//
+    //                        Helper Functions                        //
+    //----------------------------------------------------------------//
+
+    /**
+     * Checks if the user is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * Checks if the currently authenticated user's UID matches the provided userId.
+     * This is the foundation of the user-ownership model.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * A robust check for state-changing operations (update, delete).
+     * It verifies ownership AND ensures the document actually exists.
+     */
+    function isExistingOwner(ownerId) {
+      return isOwner(ownerId) && resource != null;
+    }
+
+    /**
+     * Checks if the authenticated user is the host of the race.
+     * It looks up the `host` field on the existing race document.
+     */
+    function isRaceHost(raceId) {
+      let race = get(/databases/$(database)/documents/races/$(raceId));
+      return isSignedIn() && race.data.host == request.auth.token.name;
+    }
+
+    /**
+     * Validates a new UserProfile document.
+     * In Prototyping Mode, we only validate fields essential for authorization and relational integrity.
+     * This ensures the document's internal `id` matches the document's path ID (`userId`).
+     */
+    function isCreatingValidUserProfile(userId) {
+      return request.resource.data.id == userId;
+    }
+
+    /**
+     * Validates an update to a UserProfile document.
+     * Enforces immutability on the core `id` field to prevent re-linking the profile.
+     */
+    function isUpdatingValidUserProfile() {
+      // The internal `id` field must not be changed after creation.
+      return request.resource.data.id == resource.data.id;
+    }
+
+    /**
+     * Validates a new LeaderboardEntry document.
+     * Ensures the entry's `userId` field correctly points to the person creating it.
+     */
+    function isCreatingValidLeaderboardEntry() {
+      let data = request.resource.data;
+      // Ensure the score is a positive number, accuracy is between 0 and 100,
+      // and the timestamp is the server's time to prevent spoofing.
+      return data.userId == request.auth.uid
+          && data.username == request.auth.token.name
+          && data.score is number && data.score > 0
+          && data.accuracy is number && data.accuracy >= 0 && data.accuracy <= 100
+          && data.timestamp == request.time;
+    }
+
+    /**
+     * Validates an update to a LeaderboardEntry document.
+     * Prevents changing core immutable fields like userId and timestamp.
+     * Allows updating score and accuracy.
+     */
+    function isUpdatingValidLeaderboardEntry() {
+      let data = request.resource.data;
+      // Core fields must not change on update.
+      return data.userId == resource.data.userId
+          && data.username == resource.data.username
+          && data.timestamp == resource.data.timestamp;
+    }
+
+    /**
+     * Validates a new Race document.
+     * Ensures the `host` field is set to the creator's username.
+     */
+    function isCreatingValidRace() {
+      return request.resource.data.host == request.auth.token.name
+          && request.resource.data.status == 'waiting'
+          && request.resource.data.playerCount == 0;
+    }
+
+    /**
+     * Validates an update to a Race document.
+     * Allows the host to change status or winner.
+     * Allows anyone to increment player count (for joining).
+     * Allows the first finisher to claim the winnerId.
+     */
+    function isUpdatingValidRace(raceId) {
+      let incomingData = request.resource.data;
+      let existingData = resource.data;
+
+      // Allow a player to join by incrementing the player count
+      let isJoining = isSignedIn()
+                      && incomingData.diff(existingData).affectedKeys().hasOnly(['playerCount'])
+                      && incomingData.playerCount == existingData.playerCount + 1
+                      && existingData.status == 'waiting';
+
+      // Allow the host to start the race
+      let isHostStartingRace = isRaceHost(raceId)
+                              && incomingData.status == 'running'
+                              && existingData.status == 'waiting'
+                              && incomingData.diff(existingData).affectedKeys().hasAll(['status', 'startTime']);
+
+      // Allow the first finisher to set the winnerId and finish the race
+      let isFinishingRace = isSignedIn()
+                           && incomingData.status == 'finished'
+                           && existingData.status == 'running'
+                           && existingData.winnerId == null // Critical: winner not yet set
+                           && incomingData.winnerId == request.auth.uid
+                           && incomingData.diff(existingData).affectedKeys().hasAll(['status', 'winnerId']);
+
+      return isJoining || isHostStartingRace || isFinishingRace;
+    }
+
+    //----------------------------------------------------------------//
+    //                       Collection Rules                         //
+    //----------------------------------------------------------------//
+
+    /**
+     * @description Controls access to private user profile data. Only the document owner can
+     *              read or write their own profile. Listing all users is forbidden.
+     * @path        /users/{userId}
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false; // Prevent user enumeration attacks
+      allow create: if isOwner(userId) && isCreatingValidUserProfile(userId);
+      allow update: if isExistingOwner(userId) && isUpdatingValidUserProfile();
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Controls access to the public leaderboard. The collection is readable by
+     *              anyone, but entries can only be created, updated, or deleted by the user
+     *              who achieved the score.
+     * @path        /leaderboard/{leaderboardEntryId}
+     */
+    match /leaderboard/{leaderboardEntryId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isSignedIn() && isCreatingValidLeaderboardEntry();
+      allow update: if isExistingOwner(resource.data.userId) && isUpdatingValidLeaderboardEntry();
+      allow delete: if isExistingOwner(resource.data.userId);
+    }
+
+    /**
+     * @description Controls access to multiplayer races. Races are publicly readable. Only
+     *              authenticated users can create races. The race host can start the race,
+     *              and players can join and update their own progress.
+     * @path        /races/{raceId}
+     */
+    match /races/{raceId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isSignedIn() && isCreatingValidRace();
+      allow update: if isUpdatingValidRace(raceId);
+      allow delete: if isRaceHost(raceId);
+
+      /**
+       * @description Controls access to player data within a race. Players can only create,
+       *              update, and delete their own document.
+       * @path        /races/{raceId}/players/{userId}
+       */
+      match /players/{userId} {
+        allow get: if isSignedIn();
+        allow list: if isSignedIn();
+        allow create: if isOwner(userId);
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId);
+      }
+    }
+
+    /**
+     * @description Publicly readable collection of paragraphs for the typing test.
+     *              Writes should only be performed by admin/server-side processes (e.g., seeding).
+     * @path        /paragraphs/{paragraphId}
+     */
+    match /paragraphs/{paragraphId} {
+      allow get: if true;
+      allow list: if true;
+      allow create, update, delete: if false; // Protect this collection from client-side writes
+    }
+  }
+}
+
+    

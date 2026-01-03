@@ -24,50 +24,24 @@ import {
 } from '@/components/ui/chart';
 import { Bar, BarChart as RechartsBarChart, XAxis, YAxis } from 'recharts';
 import Header from '@/components/layout/Header';
-import { useUser, useUserProfile, useFirestore, useAuth } from '@/firebase';
+import { useUserProfile, useFirestore, useCollection } from '@/firebase';
 import { useMemo } from 'react';
 import { collection, query, where, orderBy, limit } from 'firebase/firestore';
-import { useCollection } from '@/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
-
-const chartData = [
-  { date: 'May 14', wpm: 78 },
-  { date: 'May 15', wpm: 85 },
-  { date: 'May 16', wpm: 92 },
-  { date: 'May 17', wpm: 88 },
-  { date: 'May 18', wpm: 95 },
-  { date: 'May 19', wpm: 102 },
-  { date: 'May 20', wpm: 105 },
-];
-
-const gameHistory = [
-    { id: 1, wpm: 105, accuracy: '98%', date: 'May 20, 2024'},
-    { id: 2, wpm: 102, accuracy: '99%', date: 'May 19, 2024'},
-    { id: 3, wpm: 95, accuracy: '97%', date: 'May 18, 2024'},
-    { id: 4, wpm: 88, accuracy: '100%', date: 'May 17, 2024'},
-];
-
-const userProfileData = {
-    gamesPlayed: 25,
-    highestWPM: 105,
-};
-
-const averageWpm = 91;
 
 export default function DashboardPage() {
   const { data: userProfile, isLoading: isProfileLoading } = useUserProfile();
+  const firestore = useFirestore();
 
   const userGameHistoryQuery = useMemo(() => {
-    if (!userProfile) return null;
-    // This is just a placeholder query. For a real implementation, 
-    // you would query based on the user's ID.
+    if (!userProfile || !firestore) return null;
     return query(
-      collection(useFirestore(), 'leaderboard'),
-      where('username', '==', userProfile.username),
+      collection(firestore, 'leaderboard'),
+      where('userId', '==', userProfile.id),
       orderBy('timestamp', 'desc'),
       limit(10)
     );
-  }, [userProfile]);
+  }, [userProfile, firestore]);
 
   const { data: userGameHistory, isLoading: isHistoryLoading } = useCollection(userGameHistoryQuery);
 
@@ -85,7 +59,7 @@ export default function DashboardPage() {
   }, [userGameHistory]);
 
   const calculatedAverageWpm = useMemo(() => {
-    if (!userGameHistory || userGameHistory.length === 0) return 0;
+    if (!userGamegHistory || userGameHistory.length === 0) return 0;
     const totalWpm = userGameHistory.reduce((sum, game) => sum + game.score, 0);
     return Math.round(totalWpm / userGameHistory.length);
   }, [userGameHistory]);

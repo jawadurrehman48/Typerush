@@ -13,19 +13,33 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import Header from '@/components/layout/Header';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, limit } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useMemo } from 'react';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 type LeaderboardEntry = {
+  id: string;
   username: string;
   score: number;
   accuracy: number;
-  timestamp: { toDate: () => Date };
+  timestamp: Date;
   photoURL?: string;
 };
+
+// Static data to replace Firebase queries
+const staticLeaderboardData: LeaderboardEntry[] = [
+  { id: '1', username: 'Speedy', score: 135, accuracy: 99, timestamp: new Date('2024-07-21T10:00:00Z'), photoURL: PlaceHolderImages[0].imageUrl },
+  { id: '2', username: 'Typemaster', score: 128, accuracy: 98, timestamp: new Date('2024-07-20T11:00:00Z'), photoURL: PlaceHolderImages[1].imageUrl },
+  { id: '3', username: 'Keymaster', score: 122, accuracy: 97, timestamp: new Date('2024-07-19T09:30:00Z'), photoURL: PlaceHolderImages[2].imageUrl },
+  { id: '4', username: 'Flash', score: 115, accuracy: 99, timestamp: new Date('2024-07-18T14:00:00Z'), photoURL: PlaceHolderImages[3].imageUrl },
+  { id: '5', username: 'Rush', score: 110, accuracy: 96, timestamp: new Date('2024-07-17T16:00:00Z'), photoURL: PlaceHolderImages[4].imageUrl },
+  { id: '6', username: 'QuickFingers', score: 105, accuracy: 98, timestamp: new Date('2024-07-16T12:00:00Z') },
+  { id: '7', username: 'WordNinja', score: 102, accuracy: 95, timestamp: new Date('2024-07-15T08:00:00Z') },
+  { id: '8', username: 'Qwerty', score: 98, accuracy: 99, timestamp: new Date('2024-07-14T18:00:00Z') },
+  { id: '9', username: 'TypoQueen', score: 95, accuracy: 94, timestamp: new Date('2024-07-13T13:00:00Z') },
+  { id: '10', username: 'Pro', score: 92, accuracy: 97, timestamp: new Date('2024-07-12T20:00:00Z') },
+];
+
 
 const rankColor = (rank: number) => {
   if (rank === 1) return 'bg-yellow-400/80 text-yellow-900 border-yellow-400';
@@ -35,27 +49,19 @@ const rankColor = (rank: number) => {
 };
 
 export default function LeaderboardPage() {
-  const firestore = useFirestore();
-  const leaderboardQuery = useMemoFirebase(
-    () =>
-      firestore
-        ? query(collection(firestore, 'leaderboard'), orderBy('score', 'desc'), limit(10))
-        : null,
-    [firestore]
-  );
-  const { data: leaderboardData, isLoading } = useCollection<LeaderboardEntry>(leaderboardQuery);
+  const isLoading = false; // Data is now static, so not loading
 
   const formattedData = useMemo(() => {
-    return leaderboardData?.map((entry, index) => ({
+    return staticLeaderboardData.map((entry, index) => ({
       ...entry,
       rank: index + 1,
-      date: entry.timestamp.toDate().toLocaleDateString('en-US', {
+      date: entry.timestamp.toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
       }),
-    })) ?? [];
-  }, [leaderboardData]);
+    }));
+  }, []);
 
 
   return (
@@ -135,5 +141,3 @@ export default function LeaderboardPage() {
     </>
   );
 }
-
-    

@@ -102,10 +102,12 @@ service cloud.firestore {
      */
     function isCreatingValidLeaderboardEntry() {
       let data = request.resource.data;
+      // Ensure the score is a positive number, accuracy is between 0 and 100,
+      // and the timestamp is the server's time to prevent spoofing.
       return data.userId == request.auth.uid
           && data.username == request.auth.token.name
-          && data.score > 0
-          && data.accuracy >= 0 && data.accuracy <= 100
+          && data.score is number && data.score > 0
+          && data.accuracy is number && data.accuracy >= 0 && data.accuracy <= 100
           && data.timestamp == request.time;
     }
 
@@ -116,9 +118,9 @@ service cloud.firestore {
      */
     function isUpdatingValidLeaderboardEntry() {
       let data = request.resource.data;
+      // Core fields must not change on update.
       return data.userId == resource.data.userId
           && data.username == resource.data.username
-          // Allow score to be updated, but not other critical fields
           && data.timestamp == resource.data.timestamp;
     }
 
@@ -128,12 +130,14 @@ service cloud.firestore {
      */
     function isCreatingValidRace() {
       let username = get(/databases/$(database)/documents/users/$(request.auth.uid)).data.username;
-      return request.resource.data.host == username;
+      return request.resource.data.host == username
+          && request.resource.data.status == 'waiting';
     }
 
     /**
      * Validates an update to a Race document.
      * Only allows the host to change the status or winner.
+     * Other fields like id, host, and createdAt must remain immutable.
      */
     function isUpdatingValidRace(raceId) {
       return isRaceHost(raceId)
@@ -153,7 +157,7 @@ service cloud.firestore {
      */
     match /users/{userId} {
       allow get: if isOwner(userId);
-      allow list: if false;
+      allow list: if false; // Prevent user enumeration attacks
       allow create: if isOwner(userId) && isCreatingValidUserProfile(userId);
       allow update: if isExistingOwner(userId) && isUpdatingValidUserProfile();
       allow delete: if isExistingOwner(userId);
@@ -166,16 +170,13 @@ service cloud.firestore {
      * @path        /leaderboard/{leaderboardEntryId}
      */
     match /leaderboard/{leaderboardEntryId} {
-      // Anyone can get a specific entry if they have the ID.
       allow get: if true;
       // Allow two types of list queries:
-      // 1. Unauthenticated users can list top scores (e.g., for global leaderboard page).
-      // 2. Authenticated users can list their OWN scores (e.g., for dashboard).
+      // 1. Unauthenticated users can list top scores (for global leaderboard page).
+      // 2. Authenticated users can list their OWN scores (for their dashboard).
       allow list: if (request.auth == null && request.query.limit <= 20) || 
-                   (isSignedIn() && request.query.where.userId == request.auth.uid);
-      // Logged-in users can create entries for themselves.
+                   (isSignedIn() && request.query.where[0][2] == request.auth.uid);
       allow create: if isSignedIn() && isCreatingValidLeaderboardEntry();
-      // Only the owner of an entry can update or delete it.
       allow update: if isExistingOwner(resource.data.userId) && isUpdatingValidLeaderboardEntry();
       allow delete: if isExistingOwner(resource.data.userId);
     }
@@ -215,7 +216,7 @@ service cloud.firestore {
     match /paragraphs/{paragraphId} {
       allow get: if true;
       allow list: if true;
-      allow create, update, delete: if false;
+      allow create, update, delete: if false; // Protect this collection from client-side writes
     }
   }
 }

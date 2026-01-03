@@ -127,7 +127,8 @@ service cloud.firestore {
      */
     function isCreatingValidRace() {
       return request.resource.data.host == request.auth.token.name
-          && request.resource.data.status == 'waiting';
+          && request.resource.data.status == 'waiting'
+          && request.resource.data.playerCount == 0;
     }
 
     /**
@@ -143,7 +144,8 @@ service cloud.firestore {
       // Allow a player to join by incrementing the player count
       let isJoining = isSignedIn()
                       && incomingData.diff(existingData).affectedKeys().hasOnly(['playerCount'])
-                      && incomingData.playerCount == existingData.playerCount + 1;
+                      && incomingData.playerCount == existingData.playerCount + 1
+                      && existingData.status == 'waiting';
 
       // Allow the host to start the race
       let isHostStartingRace = isRaceHost(raceId)
@@ -232,5 +234,3 @@ service cloud.firestore {
     }
   }
 }
-
-    

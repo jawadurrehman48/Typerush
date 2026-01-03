@@ -58,30 +58,19 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
         startTime: null,
         winnerId: null,
         createdAt: serverTimestamp(),
-        playerCount: 1, 
+        playerCount: 0, 
       };
 
       const racesCollection = collection(firestore, 'races');
       const raceDocRef = await addDoc(racesCollection, newRace);
       const newRaceId = raceDocRef.id;
-
-      const playerRef = doc(firestore, 'races', newRaceId, 'players', user.uid);
-      const playerData = {
-        id: user.uid,
-        username: userProfile.username,
-        progress: 0,
-        wpm: 0,
-        finishedTime: null,
-        photoURL: userProfile.photoURL ?? null
-      };
-      await setDoc(playerRef, playerData);
-      
-      onJoinRace(newRaceId);
       
       toast({
         title: "Race Created!",
-        description: "Your race is ready to start.",
+        description: `Your race ID is ${newRaceId}. You can now join it.`,
+        duration: 9000,
       });
+      setRaceName(''); // Clear input after creation
     } catch (error: any) {
        toast({
         variant: "destructive",
@@ -114,6 +103,11 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
           throw new Error('Race not found. Please check the ID and try again.');
         }
 
+        const raceData = raceSnap.data();
+        if (raceData.status !== 'waiting') {
+            throw new Error('This race has already started or is finished.');
+        }
+
         const playerDocRef = doc(firestore, 'races', joinRaceId.trim(), 'players', user.uid);
         const playerSnap = await transaction.get(playerDocRef);
 
@@ -128,7 +122,7 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
           };
           transaction.set(playerDocRef, playerData);
     
-          const currentCount = raceSnap.data().playerCount || 0;
+          const currentCount = raceData.playerCount || 0;
           transaction.update(raceDocRef, { playerCount: currentCount + 1 });
         }
       });
@@ -161,7 +155,7 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
           <TabsContent value="create" className="p-6">
             <CardHeader className="p-0 mb-4">
               <CardTitle>Create a New Race</CardTitle>
-              <CardDescription>Start a new race and invite your friends.</CardDescription>
+              <CardDescription>Start a new race and share the ID with your friends.</CardDescription>
             </CardHeader>
             <div className="space-y-4">
               <div className="space-y-2">
@@ -175,14 +169,14 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
                 />
               </div>
               <Button onClick={createRace} disabled={isCreating || !userProfile} className="w-full">
-                {isCreating ? "Creating..." : "Create and Join Race"}
+                {isCreating ? "Creating..." : "Create Race"}
               </Button>
             </div>
           </TabsContent>
           <TabsContent value="join" className="p-6">
              <CardHeader className="p-0 mb-4">
                 <CardTitle>Join a Race</CardTitle>
-                <CardDescription>Enter the Race ID you received from a friend.</CardDescription>
+                <CardDescription>Enter the Race ID you want to join.</CardDescription>
             </CardHeader>
             <div className="space-y-4">
                 <div className="space-y-2">

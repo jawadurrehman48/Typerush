@@ -12,7 +12,8 @@ import {
   useUser,
   useDoc,
   useCollection,
-  WithId
+  WithId,
+  useMemoFirebase
 } from '@/firebase';
 import {
   updateDocumentNonBlocking,
@@ -50,8 +51,8 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
   const firestore = useFirestore();
   const { user } = useUser();
 
-  const raceRef = useMemo(() => doc(firestore, 'races', raceId), [firestore, raceId]);
-  const playersRef = useMemo(() => collection(firestore, 'races', raceId, 'players'), [firestore, raceId]);
+  const raceRef = useMemoFirebase(() => doc(firestore, 'races', raceId), [firestore, raceId]);
+  const playersRef = useMemoFirebase(() => collection(firestore, 'races', raceId, 'players'), [firestore, raceId]);
   
   const { data: raceData, isLoading: isRaceLoading } = useDoc<RaceData>(raceRef);
   const { data: playersData, isLoading: arePlayersLoading } = useCollection<PlayerData>(playersRef);
@@ -59,7 +60,7 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
   const [userInput, setUserInput] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   
-  const localPlayerRef = useMemo(() => user ? doc(firestore, 'races', raceId, 'players', user.uid) : null, [firestore, raceId, user]);
+  const localPlayerRef = useMemoFirebase(() => user ? doc(firestore, 'races', raceId, 'players', user.uid) : null, [firestore, raceId, user]);
   
   const text = raceData?.paragraphText || '';
   const status = raceData?.status || 'waiting';
@@ -231,5 +232,3 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
 };
 
 export default Race;
-
-    

@@ -6,15 +6,14 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { useRouter } from 'next/navigation';
-import { signInWithEmailAndPassword, signInAnonymously } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "@/hooks/use-toast"
-import { useAuth, useFirestore } from "@/firebase";
+import { useAuth } from "@/firebase";
 
 interface UserAuthFormProps extends React.HTMLAttributes<HTMLDivElement> {}
 
@@ -27,9 +26,7 @@ type UserFormValue = z.infer<typeof formSchema>
 
 export function UserAuthForm({ className, ...props }: UserAuthFormProps) {
   const [isLoading, setIsLoading] = React.useState<boolean>(false)
-  const [isGuestLoading, setIsGuestLoading] = React.useState<boolean>(false)
   const auth = useAuth();
-  const firestore = useFirestore();
   const router = useRouter();
 
   const {
@@ -55,39 +52,6 @@ export function UserAuthForm({ className, ...props }: UserAuthFormProps) {
     }
   }
 
-  const handleGuestLogin = async () => {
-    setIsGuestLoading(true);
-    try {
-        const userCredential = await signInAnonymously(auth);
-        const user = userCredential.user;
-
-        if (user) {
-            const guestUsername = `Guest${Math.floor(1000 + Math.random() * 9000)}`;
-            const userProfile = {
-                id: user.uid,
-                username: guestUsername,
-                email: null,
-                highestWPM: 0,
-                gamesPlayed: 0,
-                createdAt: new Date().toISOString(),
-            };
-
-            const userDocRef = doc(firestore, "users", user.uid);
-            await setDoc(userDocRef, userProfile, { merge: true });
-            
-            // Redirect is handled by the page's useEffect
-        }
-    } catch (error: any) {
-        toast({
-            variant: "destructive",
-            title: "Guest Login Failed",
-            description: error.message || "Could not sign in as guest.",
-        });
-    } finally {
-        setIsGuestLoading(false);
-    }
-  }
-
   return (
     <div className={cn("grid gap-6", className)} {...props}>
       <form onSubmit={handleSubmit(onSubmit)}>
@@ -101,7 +65,7 @@ export function UserAuthForm({ className, ...props }: UserAuthFormProps) {
               autoCapitalize="none"
               autoComplete="email"
               autoCorrect="off"
-              disabled={isLoading || isGuestLoading}
+              disabled={isLoading}
               {...register("email")}
             />
             {errors?.email && (
@@ -116,7 +80,7 @@ export function UserAuthForm({ className, ...props }: UserAuthFormProps) {
               id="password"
               placeholder="••••••••"
               type="password"
-              disabled={isLoading || isGuestLoading}
+              disabled={isLoading}
               {...register("password")}
             />
              {errors?.password && (
@@ -125,7 +89,7 @@ export function UserAuthForm({ className, ...props }: UserAuthFormProps) {
               </p>
             )}
           </div>
-          <Button disabled={isLoading || isGuestLoading} className="bg-accent text-accent-foreground hover:bg-accent/90">
+          <Button disabled={isLoading} className="bg-accent text-accent-foreground hover:bg-accent/90">
             {isLoading && (
               <svg className="animate-spin -ml-1 mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -136,26 +100,6 @@ export function UserAuthForm({ className, ...props }: UserAuthFormProps) {
           </Button>
         </div>
       </form>
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t" />
-        </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-background px-2 text-muted-foreground">
-            Or continue with
-          </span>
-        </div>
-      </div>
-       <Button variant="secondary" onClick={handleGuestLogin} disabled={isLoading || isGuestLoading}>
-         {isGuestLoading ? (
-            <svg className="animate-spin -ml-1 mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-         ) : (
-            'Play as Guest'
-         )}
-      </Button>
     </div>
   )
 }

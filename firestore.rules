@@ -184,7 +184,7 @@ service cloud.firestore {
       allow get: if true;
       allow list: if true;
       allow create: if isSignedIn() && isCreatingValidRace();
-      allow update: if isUpdatingValidRace(raceId);
+      allow update: if isRaceHost(raceId) && isUpdatingValidRace(raceId);
       allow delete: if isRaceHost(raceId);
 
       /**

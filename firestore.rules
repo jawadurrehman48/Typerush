@@ -6,6 +6,7 @@
  *
  * Data Structure:
  * - /users/{userId}: Contains private UserProfile documents, keyed by the user's auth UID.
+ * - /users/{userId}/games/{gameId}: Contains history of games played by a user.
  * - /leaderboard/{leaderboardEntryId}: A global collection of all game scores, designed for
  *   public consumption.
  * - /races/{raceId}: Contains documents for multiplayer races.
@@ -16,7 +17,7 @@
  * - User Enumeration is Disallowed: The top-level `/users` collection is not listable,
  *   preventing malicious actors from scraping all user profiles.
  * - Strict Profile Ownership: A user can only access and modify their own document within
- *   the `/users` collection.
+ *   the `/users` collection and its subcollections.
  * - Public Leaderboard & Races: The `/leaderboard` and `/races` collections are publicly readable
  *   by anyone, including unauthenticated guests, to allow for displaying high scores and open games.
  * - Data Integrity: Users can only create, update, or delete entries (like leaderboard scores
@@ -87,10 +88,27 @@ service cloud.firestore {
     /**
      * Validates an update to a UserProfile document.
      * Enforces immutability on the core `id` field to prevent re-linking the profile.
+     * Allows updating gamesPlayed and highestWPM.
      */
     function isUpdatingValidUserProfile() {
-      // The internal `id` field must not be changed after creation.
-      return request.resource.data.id == resource.data.id;
+        let incomingData = request.resource.data;
+        let existingData = resource.data;
+        // The internal `id` field must not be changed after creation.
+        let isIdUnchanged = incomingData.id == existingData.id;
+        // Allow only specific fields to be updated.
+        let allowedFieldsUpdated = incomingData.diff(existingData).affectedKeys().hasOnly(['gamesPlayed', 'highestWPM', 'username', 'photoURL']);
+
+        return isIdUnchanged && allowedFieldsUpdated;
+    }
+
+    /**
+     * Validates a new Game document in the user's subcollection.
+     */
+    function isCreatingValidGameEntry() {
+        let data = request.resource.data;
+        return data.score is number && data.score >= 0
+            && data.accuracy is number && data.accuracy >= 0 && data.accuracy <= 100
+            && data.timestamp == request.time;
     }
 
     /**
@@ -153,11 +171,13 @@ service cloud.firestore {
                               && existingData.status == 'waiting'
                               && incomingData.diff(existingData).affectedKeys().hasAll(['status', 'startTime']);
 
-      // Allow the first finisher to set the winnerId.
+      // Allow the first finisher to set the winnerId and finish the race.
       let isFirstFinisher = isSignedIn()
-                            && incomingData.diff(existingData).affectedKeys().hasOnly(['winnerId'])
+                            && incomingData.diff(existingData).affectedKeys().hasAll(['winnerId', 'status'])
                             && existingData.winnerId == null // Critical: winner not yet set
-                            && incomingData.winnerId == request.auth.uid;
+                            && incomingData.winnerId == request.auth.uid
+                            && incomingData.status == 'finished'
+                            && existingData.status == 'running';
                             
       // Allow host to manually finish the race if needed (e.g. timeout)
       let isHostFinishingRace = isRaceHost(raceId)
@@ -182,6 +202,17 @@ service cloud.firestore {
       allow create: if isOwner(userId) && isCreatingValidUserProfile(userId);
       allow update: if isExistingOwner(userId) && isUpdatingValidUserProfile();
       allow delete: if isExistingOwner(userId);
+
+      /**
+       * @description Controls access to a user's game history. Only the owner can manage
+       *              their own game records.
+       * @path        /users/{userId}/games/{gameId}
+       */
+      match /games/{gameId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId) && isCreatingValidGameEntry();
+        allow update, delete: if isOwner(userId);
+      }
     }
 
     /**
@@ -237,3 +268,5 @@ service cloud.firestore {
     }
   }
 }
+
+    

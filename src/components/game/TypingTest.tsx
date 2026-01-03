@@ -1,5 +1,5 @@
 
-"use client";
+'use client';
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -8,7 +8,13 @@ import { getRandomParagraph } from '@/lib/paragraphs';
 import { cn } from '@/lib/utils';
 import { RefreshCw, Zap, Target } from 'lucide-react';
 import Link from 'next/link';
-import { useFirestore } from '@/firebase';
+import { useFirestore, useUser } from '@/firebase';
+import {
+  writeBatch,
+  doc,
+  serverTimestamp,
+  runTransaction,
+} from 'firebase/firestore';
 
 type GameStatus = 'waiting' | 'running' | 'finished';
 
@@ -20,6 +26,7 @@ const TypingTest = () => {
   const [endTime, setEndTime] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const firestore = useFirestore();
+  const { user } = useUser();
   const [lastParagraphId, setLastParagraphId] = useState<string | null>(null);
 
   const newGame = async () => {
@@ -42,40 +49,6 @@ const TypingTest = () => {
     }
   }, [firestore]);
 
-  useEffect(() => {
-    if (status === 'running' && inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [status]);
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-
-    if (status === 'waiting' && value.length > 0) {
-      setStatus('running');
-      setStartTime(Date.now());
-    }
-
-    if (status !== 'finished') {
-      setUserInput(value);
-
-      if (value.length === text.length) {
-        setStatus('finished');
-        setEndTime(Date.now());
-      }
-    }
-  };
-
-  const characters = useMemo(() => {
-    return text.split('').map((char, index) => {
-      let state: 'correct' | 'incorrect' | 'untyped' = 'untyped';
-      if (index < userInput.length) {
-        state = char === userInput[index] ? 'correct' : 'incorrect';
-      }
-      return { char, state };
-    });
-  }, [text, userInput]);
-
   const { wpm, accuracy } = useMemo(() => {
     if (status !== 'running' && status !== 'finished') return { wpm: 0, accuracy: 0 };
     
@@ -91,6 +64,89 @@ const TypingTest = () => {
     
     return { wpm, accuracy };
   }, [userInput, text, startTime, endTime, status]);
+
+  useEffect(() => {
+    if (status === 'running' && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [status]);
+  
+  const handleGameFinish = async () => {
+    setEndTime(Date.now());
+
+    if (!user || !firestore) return;
+
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            const userRef = doc(firestore, 'users', user.uid);
+            const userDoc = await transaction.get(userRef);
+
+            if (!userDoc.exists()) {
+                throw "User document does not exist!";
+            }
+            
+            const gamesPlayed = (userDoc.data().gamesPlayed || 0) + 1;
+            const currentHighestWPM = userDoc.data().highestWPM || 0;
+            const newHighestWPM = Math.max(currentHighestWPM, wpm);
+
+            // Update user's main profile stats
+            transaction.update(userRef, {
+                gamesPlayed: gamesPlayed,
+                highestWPM: newHighestWPM
+            });
+
+            // Create a record for the game in a subcollection
+            const gameRef = doc(collection(firestore, 'users', user.uid, 'games'));
+            transaction.set(gameRef, {
+                score: wpm,
+                accuracy: accuracy,
+                timestamp: serverTimestamp()
+            });
+
+            // Also create a leaderboard entry
+            const leaderboardRef = doc(collection(firestore, "leaderboard"));
+            transaction.set(leaderboardRef, {
+                userId: user.uid,
+                username: user.displayName,
+                score: wpm,
+                accuracy: accuracy,
+                timestamp: serverTimestamp(),
+            });
+
+        });
+    } catch (e) {
+        console.error("Game finish transaction failed: ", e);
+    }
+  };
+
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+
+    if (status === 'waiting' && value.length > 0) {
+      setStatus('running');
+      setStartTime(Date.now());
+    }
+
+    if (status !== 'finished') {
+      setUserInput(value);
+
+      if (value.length === text.length) {
+        setStatus('finished');
+        handleGameFinish(); // Call the finish handler
+      }
+    }
+  };
+
+  const characters = useMemo(() => {
+    return text.split('').map((char, index) => {
+      let state: 'correct' | 'incorrect' | 'untyped' = 'untyped';
+      if (index < userInput.length) {
+        state = char === userInput[index] ? 'correct' : 'incorrect';
+      }
+      return { char, state };
+    });
+  }, [text, userInput]);
 
   return (
     <Card className="w-full relative shadow-lg">
@@ -182,3 +238,5 @@ const TypingTest = () => {
 };
 
 export default TypingTest;
+
+    

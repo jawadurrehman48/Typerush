@@ -41,6 +41,36 @@
         "gamesPlayed"
       ]
     },
+    "Game": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Game",
+      "type": "object",
+      "description": "Represents a single game played by a user.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Game entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "The ID of the user who played the game."
+        },
+        "score": {
+          "type": "number",
+          "description": "The score (WPM) achieved in the game."
+        },
+        "accuracy": {
+            "type": "number",
+            "description": "The typing accuracy percentage."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "The timestamp indicating when the game was played.",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "userId", "score", "accuracy", "timestamp"]
+    },
     "LeaderboardEntry": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "LeaderboardEntry",
@@ -63,6 +93,10 @@
           "type": "number",
           "description": "The score achieved by the user."
         },
+        "accuracy": {
+            "type": "number",
+            "description": "The typing accuracy percentage."
+        },
         "timestamp": {
           "type": "string",
           "description": "The timestamp indicating when the score was achieved.",
@@ -74,6 +108,7 @@
         "userId",
         "username",
         "score",
+        "accuracy",
         "timestamp"
       ]
     }
@@ -102,6 +137,26 @@
         }
       },
       {
+        "path": "/users/{userId}/games/{gameId}",
+        "definition": {
+          "entityName": "Game",
+          "schema": {
+            "$ref": "#/backend/entities/Game"
+          },
+          "description": "Stores the history of games played by a specific user. Path-based ownership ensures only the authenticated user can access their own game history.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            },
+            {
+              "name": "gameId",
+              "description": "The unique identifier for the game entry."
+            }
+          ]
+        }
+      },
+      {
         "path": "/leaderboard/{leaderboardEntryId}",
         "definition": {
           "entityName": "LeaderboardEntry",
@@ -118,7 +173,7 @@
         }
       }
     ],
-    "reasoning": "The Firestore data structure is designed to support user authentication (email/password, guest), profile storage, leaderboard functionality, and game statistics tracking in the TypeRush application. The structure prioritizes authorization independence and clear security rules. User profiles are stored in a private collection `/users/{userId}`, ensuring only the authenticated user can access their own profile. Leaderboard entries are stored in a global collection `/leaderboard`, allowing efficient querying and display of top scores. The `username` is denormalized into the `LeaderboardEntry` documents to avoid needing to perform a `get()` operation from the `users` collection in security rules to ensure that the user still has that username. This is critical for atomic updates. All reads on the `leaderboard` collection can be granted if the `username` matches the user and the `userId` is valid."
+    "reasoning": "The Firestore data structure is designed to support user authentication (email/password, guest), profile storage, leaderboard functionality, and game statistics tracking in the TypeRush application. The structure prioritizes authorization independence and clear security rules. User profiles are stored in a private collection `/users/{userId}`, ensuring only the authenticated user can access their own profile. A subcollection `/users/{userId}/games` stores a user's individual game history. Leaderboard entries are stored in a global collection `/leaderboard`, allowing efficient querying and display of top scores. The `username` is denormalized into the `LeaderboardEntry` documents to avoid needing to perform a `get()` operation from the `users` collection in security rules to ensure that the user still has that username. This is critical for atomic updates. All reads on the `leaderboard` collection can be granted if the `username` matches the user and the `userId` is valid."
   }
 }
 

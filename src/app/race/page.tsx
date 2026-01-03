@@ -3,10 +3,10 @@
 
 import { useState, useEffect } from 'react';
 import Header from '@/components/layout/Header';
-import RaceLobby from '@/components/race/RaceLobby';
 import Race from '@/components/race/Race';
 import { useUser } from '@/firebase';
 import { useRouter } from 'next/navigation';
+import JoinOrCreateRace from '@/components/race/JoinOrCreateRace';
 
 export default function RacePage() {
   const [raceId, setRaceId] = useState<string | null>(null);
@@ -48,9 +48,9 @@ export default function RacePage() {
                 Race against others
               </h1>
               <p className="mb-12 text-center text-lg text-muted-foreground md:text-xl">
-                Join a race or create your own and challenge your friends.
+                Create a private race and challenge your friends, or join one using a Race ID.
               </p>
-              <RaceLobby onJoinRace={handleJoinRace} />
+              <JoinOrCreateRace onJoinRace={handleJoinRace} />
             </>
           )}
         </div>

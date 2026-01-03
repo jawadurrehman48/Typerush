@@ -19,7 +19,7 @@ export const getRandomParagraph = async (db: Firestore, excludeId: string | null
        // If filtering left no paragraphs, query again without the exclusion
        const allDocsSnapshot = await getDocs(collection(db, paragraphsCol));
        if (allDocsSnapshot.empty) {
-         return { paragraph: "No paragraphs found in the database. Please add some.", id: 'none' };
+         return { paragraph: "No paragraphs found in the database. Please run 'npm run db:seed' to populate it.", id: 'none' };
        }
        const randomIndex = Math.floor(Math.random() * allDocsSnapshot.docs.length);
        const doc = allDocsSnapshot.docs[randomIndex];

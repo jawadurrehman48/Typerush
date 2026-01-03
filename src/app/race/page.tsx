@@ -12,8 +12,10 @@ export default function RacePage() {
   const [raceId, setRaceId] = useState<string | null>(null);
   const { user, isUserLoading } = useUser();
   const router = useRouter();
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
+    setIsClient(true);
     if (!isUserLoading && !user) {
       router.push('/');
     }
@@ -27,7 +29,7 @@ export default function RacePage() {
     setRaceId(null);
   };
 
-  if (isUserLoading || !user) {
+  if (isUserLoading || !user || !isClient) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="h-16 w-16 animate-spin rounded-full border-4 border-dashed border-primary"></div>

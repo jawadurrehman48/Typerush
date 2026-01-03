@@ -31,19 +31,22 @@ export default function RacePage() {
   const handleLeaveRace = () => {
     setRaceId(null);
   };
-  
-  // Conditionally render the content *inside* the main return block
-  // to avoid changing the hook execution order.
-  const renderContent = () => {
-    if (isUserLoading || !isClient) {
-      return (
+
+  if (!isClient || isUserLoading) {
+    return (
+      <>
+        <Header />
         <div className="flex h-[80vh] items-center justify-center">
           <div className="h-16 w-16 animate-spin rounded-full border-4 border-dashed border-primary"></div>
         </div>
-      );
-    }
-    
-    return (
+      </>
+    );
+  }
+
+  return (
+    <>
+      <Header />
+      <div className="container mx-auto flex flex-col items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
         <div className="w-full max-w-4xl">
           {raceId ? (
             <Race raceId={raceId} onLeave={handleLeaveRace} />
@@ -59,14 +62,6 @@ export default function RacePage() {
             </>
           )}
         </div>
-    );
-  }
-
-  return (
-    <>
-      <Header />
-      <div className="container mx-auto flex flex-col items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
-        {renderContent()}
       </div>
     </>
   );

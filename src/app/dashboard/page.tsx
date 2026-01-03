@@ -17,7 +17,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import {
   ChartContainer,
   ChartTooltip,
@@ -25,25 +24,49 @@ import {
 } from '@/components/ui/chart';
 import { Bar, BarChart as RechartsBarChart, XAxis, YAxis } from 'recharts';
 import Header from '@/components/layout/Header';
+import { useUser, useUserProfile, useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, query, where, orderBy, limit } from 'firebase/firestore';
+import type { WithId } from '@/firebase';
+import { Skeleton } from '@/components/ui/skeleton';
+import { format } from 'date-fns';
 
-const chartData = [
-  { date: '2024-05-01', wpm: 75 },
-  { date: '2024-05-02', wpm: 82 },
-  { date: '2024-05-03', wpm: 80 },
-  { date: '2024-05-04', wpm: 88 },
-  { date: '2024-05-05', wpm: 91 },
-  { date: '2024-05-06', wpm: 89 },
-  { date: '2024-05-07', wpm: 95 },
-];
-
-const gameHistory = [
-  { date: '2024-05-07', wpm: 95, accuracy: '98%', change: '+6' },
-  { date: '2024-05-06', wpm: 89, accuracy: '96%', change: '-2' },
-  { date: '2024-05-05', wpm: 91, accuracy: '99%', change: '+3' },
-  { date: '2024-05-04', wpm: 88, accuracy: '97%', change: '+8' },
-];
+type LeaderboardEntry = {
+    score: number;
+    accuracy: number;
+    timestamp: { toDate: () => Date };
+};
 
 export default function DashboardPage() {
+    const { user } = useUser();
+    const firestore = useFirestore();
+    const { data: userProfile, isLoading: isProfileLoading } = useUserProfile();
+
+    const userGamesQuery = useMemoFirebase(() => {
+        if (!firestore || !user) return null;
+        return query(
+            collection(firestore, 'leaderboard'),
+            where('userId', '==', user.uid),
+            orderBy('timestamp', 'desc')
+        );
+    }, [firestore, user]);
+
+    const { data: gameHistory, isLoading: isHistoryLoading } = useCollection<LeaderboardEntry>(userGamesQuery);
+
+    const chartData = useMemoFirebase(() => {
+      if (!gameHistory) return [];
+      // Take the last 7 games and format them for the chart
+      return gameHistory.slice(0, 7).reverse().map(game => ({
+        date: format(game.timestamp.toDate(), 'MMM d'),
+        wpm: game.score,
+      }));
+    }, [gameHistory]);
+    
+    const averageWpm = useMemoFirebase(() => {
+        if (!gameHistory || gameHistory.length === 0) return 0;
+        const totalWpm = gameHistory.reduce((acc, game) => acc + game.score, 0);
+        return Math.round(totalWpm / gameHistory.length);
+    }, [gameHistory])
+
   return (
     <>
     <Header />
@@ -58,8 +81,12 @@ export default function DashboardPage() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-accent">95</div>
-            <p className="text-xs text-muted-foreground">+5.2% from last week</p>
+            {isHistoryLoading ? (
+                <Skeleton className="h-8 w-1/2" />
+            ) : (
+                <div className="text-2xl font-bold text-accent">{averageWpm}</div>
+            )}
+            <p className="text-xs text-muted-foreground">Across all games</p>
           </CardContent>
         </Card>
         <Card>
@@ -68,8 +95,12 @@ export default function DashboardPage() {
             <BarChart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">128</div>
-            <p className="text-xs text-muted-foreground">+20 games this month</p>
+             {isProfileLoading ? (
+                <Skeleton className="h-8 w-1/2" />
+            ) : (
+                <div className="text-2xl font-bold">{userProfile?.gamesPlayed ?? 0}</div>
+            )}
+            <p className="text-xs text-muted-foreground">Total games completed</p>
           </CardContent>
         </Card>
         <Card>
@@ -78,18 +109,26 @@ export default function DashboardPage() {
             <Target className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-primary">152 WPM</div>
-            <p className="text-xs text-muted-foreground">with 98% accuracy</p>
+            {isProfileLoading ? (
+                <Skeleton className="h-8 w-1/2" />
+            ) : (
+                <div className="text-2xl font-bold text-primary">{userProfile?.highestWPM ?? 0} WPM</div>
+            )}
+            <p className="text-xs text-muted-foreground">Your personal best</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Time Spent</CardTitle>
+            <CardTitle className="text-sm font-medium">Top Accuracy</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">1h 45m</div>
-            <p className="text-xs text-muted-foreground">Total typing time</p>
+            {isHistoryLoading ? (
+                <Skeleton className="h-8 w-1/2" />
+            ) : (
+                <div className="text-2xl font-bold">{Math.max(0, ...gameHistory?.map(g => g.accuracy) ?? [])}%</div>
+            )}
+            <p className="text-xs text-muted-foreground">Highest accuracy achieved</p>
           </CardContent>
         </Card>
       </div>
@@ -98,9 +137,10 @@ export default function DashboardPage() {
         <Card className="md:col-span-3">
           <CardHeader>
             <CardTitle>WPM Progress</CardTitle>
-            <CardDescription>Your typing speed over the last 7 days.</CardDescription>
+            <CardDescription>Your typing speed over the last 7 games.</CardDescription>
           </CardHeader>
           <CardContent>
+            {isHistoryLoading ? <Skeleton className="h-[250px] w-full" /> : (
              <ChartContainer
               config={{
                 wpm: {
@@ -112,7 +152,7 @@ export default function DashboardPage() {
             >
               <RechartsBarChart data={chartData} margin={{ top: 20, right: 20, left: -10, bottom: 0}}>
                 <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
-                <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} domain={[0, 'dataMax + 10']}/>
                 <ChartTooltip
                   cursor={false}
                   content={<ChartTooltipContent indicator="dot" />}
@@ -120,6 +160,7 @@ export default function DashboardPage() {
                 <Bar dataKey="wpm" fill="hsl(var(--accent))" radius={4} />
               </RechartsBarChart>
             </ChartContainer>
+            )}
           </CardContent>
         </Card>
         <Card className="md:col-span-2">
@@ -128,6 +169,14 @@ export default function DashboardPage() {
             <CardDescription>Your last 4 typing sessions.</CardDescription>
           </CardHeader>
           <CardContent>
+            {isHistoryLoading ? (
+                <div className="space-y-4">
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                </div>
+            ) : (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -137,22 +186,25 @@ export default function DashboardPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {gameHistory.map((game, index) => (
-                  <TableRow key={index}>
+                {gameHistory?.slice(0, 4).map((game: WithId<LeaderboardEntry>) => (
+                  <TableRow key={game.id}>
                     <TableCell>
-                      <div className="font-medium text-accent">{game.wpm}</div>
-                      <div className="hidden text-sm text-muted-foreground md:inline">
-                         <Badge variant={game.change.startsWith('+') ? 'default' : 'destructive'} className={`${game.change.startsWith('+') ? 'bg-accent text-accent-foreground' : ''}`}>
-                          {game.change}
-                        </Badge>
-                      </div>
+                      <div className="font-medium text-accent">{game.score}</div>
                     </TableCell>
-                    <TableCell>{game.accuracy}</TableCell>
-                    <TableCell className="text-right text-muted-foreground">{game.date}</TableCell>
+                    <TableCell>{game.accuracy}%</TableCell>
+                    <TableCell className="text-right text-muted-foreground">{format(game.timestamp.toDate(), 'MMM d, yyyy')}</TableCell>
                   </TableRow>
                 ))}
+                 {gameHistory?.length === 0 && (
+                    <TableRow>
+                        <TableCell colSpan={3} className="text-center text-muted-foreground">
+                            No games played yet.
+                        </TableCell>
+                    </TableRow>
+                )}
               </TableBody>
             </Table>
+            )}
           </CardContent>
         </Card>
       </div>

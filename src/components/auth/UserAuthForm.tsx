@@ -7,14 +7,14 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { useRouter } from 'next/navigation';
 import { signInWithEmailAndPassword, signInAnonymously } from 'firebase/auth';
-import { doc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "@/hooks/use-toast"
-import { useAuth, useFirestore, setDocumentNonBlocking } from "@/firebase";
+import { useAuth, useFirestore } from "@/firebase";
 
 interface UserAuthFormProps extends React.HTMLAttributes<HTMLDivElement> {}
 
@@ -73,7 +73,7 @@ export function UserAuthForm({ className, ...props }: UserAuthFormProps) {
             };
 
             const userDocRef = doc(firestore, "users", user.uid);
-            setDocumentNonBlocking(userDocRef, userProfile, { merge: true });
+            await setDoc(userDocRef, userProfile, { merge: true });
             
             // Redirect is handled by the page's useEffect
         }
@@ -83,6 +83,7 @@ export function UserAuthForm({ className, ...props }: UserAuthFormProps) {
             title: "Guest Login Failed",
             description: error.message || "Could not sign in as guest.",
         });
+    } finally {
         setIsGuestLoading(false);
     }
   }

@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -6,14 +7,14 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { useRouter } from 'next/navigation';
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { doc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "@/hooks/use-toast"
-import { useAuth, useFirestore, setDocumentNonBlocking } from "@/firebase";
+import { useAuth, useFirestore } from "@/firebase";
 
 interface UserSignUpFormProps extends React.HTMLAttributes<HTMLDivElement> {}
 
@@ -61,11 +62,13 @@ export function UserSignUpForm({ className, ...props }: UserSignUpFormProps) {
           email: user.email,
           username: data.username,
           fullName: data.fullName,
+          highestWPM: 0,
+          gamesPlayed: 0,
           createdAt: new Date().toISOString(),
         };
 
         const userDocRef = doc(firestore, "users", user.uid);
-        setDocumentNonBlocking(userDocRef, userProfile, { merge: true });
+        await setDoc(userDocRef, userProfile, { merge: true });
 
         toast({
           title: "Account Created",

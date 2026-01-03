@@ -1,224 +1,82 @@
-
 {
   "entities": {
     "UserProfile": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "UserProfile",
       "type": "object",
-      "description": "Represents a user's profile information.",
+      "description": "Represents a user's profile within the TypeRush application.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the user profile."
-        },
-        "email": {
-          "type": "string",
-          "description": "User's email address.",
-          "format": "email"
+          "description": "Unique identifier for the UserProfile entity."
         },
         "username": {
           "type": "string",
-          "description": "User's chosen username."
+          "description": "The user's chosen username."
         },
-        "createdAt": {
+        "email": {
           "type": "string",
-          "description": "Timestamp indicating when the user profile was created.",
-          "format": "date-time"
+          "description": "The user's email address.",
+          "format": "email"
         },
-        "lastLogin": {
-          "type": "string",
-          "description": "Timestamp indicating when the user last logged in.",
-          "format": "date-time"
+        "highestWPM": {
+          "type": "number",
+          "description": "The user's highest recorded typing speed (words per minute)."
         },
-        "fullName": {
-          "type": "string",
-          "description": "User's full name."
+        "gamesPlayed": {
+          "type": "number",
+          "description": "The total number of games the user has played."
         }
       },
       "required": [
         "id",
-        "email",
         "username",
-        "createdAt",
-        "fullName"
-      ]
-    },
-    "GameScore": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "GameScore",
-      "type": "object",
-      "description": "Represents a single game score record.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the game score record."
-        },
-        "userId": {
-          "type": "string",
-          "description": "Reference to UserProfile. (Relationship: UserProfile 1:N GameScore)"
-        },
-        "score": {
-          "type": "number",
-          "description": "The user's score in this game."
-        },
-        "wpm": {
-          "type": "number",
-          "description": "The user's words per minute (WPM) in this game."
-        },
-        "accuracy": {
-          "type": "number",
-          "description": "The user's accuracy percentage in this game."
-        },
-        "timestamp": {
-          "type": "string",
-          "description": "Timestamp indicating when the game was played.",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "userId",
-        "score",
-        "wpm",
-        "accuracy",
-        "timestamp"
+        "email",
+        "highestWPM",
+        "gamesPlayed"
       ]
     },
     "LeaderboardEntry": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "LeaderboardEntry",
       "type": "object",
-      "description": "Represents an entry in the leaderboard.",
+      "description": "Represents a single entry on the leaderboard.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the leaderboard entry."
+          "description": "Unique identifier for the LeaderboardEntry entity."
         },
         "userId": {
           "type": "string",
-          "description": "Reference to UserProfile. (Relationship: UserProfile 1:1 LeaderboardEntry)"
+          "description": "Reference to UserProfile. (Relationship: UserProfile 1:N LeaderboardEntry)"
+        },
+        "username": {
+          "type": "string",
+          "description": "The username associated with this leaderboard entry."
         },
         "score": {
           "type": "number",
-          "description": "The user's current high score on the leaderboard."
+          "description": "The score achieved by the user."
         },
-        "rank": {
-          "type": "number",
-          "description": "The user's rank on the leaderboard."
-        },
-        "lastUpdated": {
+        "timestamp": {
           "type": "string",
-          "description": "Timestamp indicating when the leaderboard entry was last updated.",
+          "description": "The timestamp indicating when the score was achieved.",
           "format": "date-time"
         }
       },
       "required": [
         "id",
         "userId",
-        "score",
-        "rank",
-        "lastUpdated"
-      ]
-    },
-    "Paragraph": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Paragraph",
-      "type": "object",
-      "description": "A paragraph of text for the typing game.",
-      "properties": {
-        "text": {
-          "type": "string",
-          "description": "The content of the paragraph."
-        }
-      },
-      "required": [
-        "text"
-      ]
-    },
-    "Race": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Race",
-      "type": "object",
-      "description": "Represents a multiplayer typing race.",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "paragraphId": {
-          "type": "string",
-          "description": "Reference to the Paragraph document used for the race."
-        },
-        "paragraphText": {
-          "type": "string",
-          "description": "The actual text of the paragraph for the race."
-        },
-        "status": {
-          "type": "string",
-          "enum": ["waiting", "running", "finished"],
-          "description": "The current status of the race."
-        },
-        "startTime": {
-          "type": ["string", "null"],
-          "format": "date-time",
-          "description": "Timestamp when the race starts. Null until started."
-        },
-        "winnerId": {
-          "type": ["string", "null"],
-          "description": "The userId of the winner. Null until a player finishes."
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "paragraphId",
-        "paragraphText",
-        "status",
-        "createdAt"
-      ]
-    },
-    "Player": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Player",
-      "type": "object",
-      "description": "Represents a player's state within a Race.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "The player's userId."
-        },
-        "username": {
-          "type": "string"
-        },
-        "progress": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 100,
-          "description": "The player's typing progress as a percentage."
-        },
-        "wpm": {
-          "type": "number",
-          "description": "The player's current words per minute."
-        },
-        "finishedTime": {
-          "type": ["number", "null"],
-          "description": "The time in seconds it took the player to finish. Null if not finished."
-        }
-      },
-      "required": [
-        "id",
         "username",
-        "progress"
+        "score",
+        "timestamp"
       ]
     }
   },
   "auth": {
     "providers": [
       "password",
-      "anonymous",
-      "google.com"
+      "anonymous"
     ]
   },
   "firestore": {
@@ -230,31 +88,11 @@
           "schema": {
             "$ref": "#/backend/entities/UserProfile"
           },
-          "description": "Stores user profile information. Path-based ownership ensures only the authenticated user can access their profile.  `userId` MUST equal `request.auth.uid`.",
+          "description": "Stores user profile data. Path-based ownership ensures only the authenticated user can access their profile. Includes 'id', 'username', 'email', 'highestWPM', and 'gamesPlayed'.",
           "params": [
             {
               "name": "userId",
-              "description": "The unique identifier for the user, corresponding to their Firebase Auth UID."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/users/{userId}/game_scores/{gameScoreId}",
-        "definition": {
-          "entityName": "GameScore",
-          "schema": {
-            "$ref": "#/backend/entities/GameScore"
-          },
-          "description": "Stores game scores for a specific user. Path-based ownership ensures only the authenticated user can access their game scores. `userId` MUST equal `request.auth.uid`.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user, corresponding to their Firebase Auth UID."
-            },
-            {
-              "name": "gameScoreId",
-              "description": "The unique identifier for the individual game score record."
+              "description": "The unique identifier of the user, corresponding to their Firebase Authentication UID."
             }
           ]
         }
@@ -266,7 +104,7 @@
           "schema": {
             "$ref": "#/backend/entities/LeaderboardEntry"
           },
-          "description": "Stores leaderboard entries.  Writes are restricted to a trusted Cloud Function. List operations are generally allowed.",
+          "description": "Stores leaderboard entries. Includes denormalized 'username' from UserProfile for authorization independence. Includes 'userId', 'username', 'score', and 'timestamp'.",
           "params": [
             {
               "name": "leaderboardEntryId",
@@ -274,60 +112,8 @@
             }
           ]
         }
-      },
-      {
-        "path": "/paragraphs/{paragraphId}",
-        "definition": {
-          "entityName": "Paragraph",
-          "schema": {
-            "$ref": "#/backend/entities/Paragraph"
-          },
-          "description": "Stores paragraphs for the typing game. This collection is world-readable.",
-          "params": [
-            {
-              "name": "paragraphId",
-              "description": "The unique identifier for the paragraph."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/races/{raceId}",
-        "definition": {
-          "entityName": "Race",
-          "schema": {
-            "$ref": "#/backend/entities/Race"
-          },
-          "description": "Stores multiplayer race information. Authenticated users can create and read races.",
-          "params": [
-            {
-              "name": "raceId",
-              "description": "Unique ID for the race."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/races/{raceId}/players/{userId}",
-        "definition": {
-          "entityName": "Player",
-          "schema": {
-            "$ref": "#/backend/entities/Player"
-          },
-          "description": "Stores individual player state within a race. `userId` must match the authenticated user's UID. A player can join a race (create) and update their own progress.",
-          "params": [
-            {
-              "name": "raceId",
-              "description": "The ID of the race the player is in."
-            },
-            {
-              "name": "userId",
-              "description": "The unique ID of the player, matching their auth UID."
-            }
-          ]
-        }
       }
     ],
-    "reasoning": "The Firestore structure is designed to support user authentication, game score storage, and leaderboard functionality for the TypeRush application. It emphasizes authorization independence and clear security rules.  \n\nUserProfile Data: User profiles are stored in `/users/{userId}` using path-based ownership. This is the standard and preferred method for private user data.  This enables simple, secure rules based on `request.auth.uid == userId`.\n\nGameScore Data: Game scores are stored in a subcollection `/users/{userId}/game_scores/{gameScoreId}`. This hierarchical structure maintains the `User 1:N GameScore` relationship. Security rules can efficiently validate that `request.auth.uid == userId` to ensure only the authenticated user can create, read, update, or delete their own game scores.\n\nLeaderboard Data: Leaderboard entries are stored in the `/leaderboard/{leaderboardEntryId}` collection. Each entry contains the `userId`, `score`, `rank`, and `lastUpdated`. The Update Leaderboard Cloud Function will manage writes to the collection.  Listing the leaderboard for read access is simple and secure.\n\nParagraph Data: Paragraphs for the game are stored in the `/paragraphs/{paragraphId}` collection. This data is public and needs to be readable by all users, so the rules allow for global read access.\n\nRace Data: Multiplayer races are stored in the `/races/{raceId}` collection. Authenticated users can create new races and read the list of available races. The state of each player in a race is stored in a subcollection `/races/{raceId}/players/{userId}`. This structure is secure and scalable, as it allows a player to only modify their own race data by enforcing `request.auth.uid == userId` on the subcollection path. This prevents one player from maliciously updating another's progress."
+    "reasoning": "The Firestore data structure is designed to support user authentication (email/password, guest), profile storage, leaderboard functionality, and game statistics tracking in the TypeRush application. The structure prioritizes authorization independence and clear security rules. User profiles are stored in a private collection `/users/{userId}`, ensuring only the authenticated user can access their own profile. Leaderboard entries are stored in a global collection `/leaderboard`, allowing efficient querying and display of top scores. The `username` is denormalized into the `LeaderboardEntry` documents to avoid needing to perform a `get()` operation from the `users` collection in security rules to ensure that the user still has that username. This is critical for atomic updates. All reads on the `leaderboard` collection can be granted if the `username` matches the user and the `userId` is valid."
   }
 }

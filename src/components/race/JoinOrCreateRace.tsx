@@ -7,7 +7,6 @@ import {
   getDoc,
   setDoc,
   runTransaction,
-  collection,
   serverTimestamp,
 } from 'firebase/firestore';
 import { useFirestore, useUser, useUserProfile } from '@/firebase';
@@ -74,12 +73,11 @@ export default function JoinOrCreateRace({ onJoinRace }: JoinOrCreateRaceProps) 
     setIsCreating(true);
 
     try {
-      const { paragraph, id: paragraphId } = await getRandomParagraph(firestore);
+      const { paragraph } = await getRandomParagraph(firestore);
       const uniqueRaceId = await generateUniqueRaceId();
 
       const newRace = {
         id: uniqueRaceId,
-        paragraphId: paragraphId,
         paragraphText: paragraph,
         status: 'waiting',
         startTime: null,
@@ -144,7 +142,6 @@ export default function JoinOrCreateRace({ onJoinRace }: JoinOrCreateRaceProps) 
         const playerDocRef = doc(firestore, 'races', joinRaceId.trim(), 'players', user.uid);
         const playerSnap = await transaction.get(playerDocRef);
 
-        // Only add player and increment count if they are not already in the race
         if (!playerSnap.exists()) {
           const playerData = {
             id: user.uid,

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -6,6 +7,7 @@ import {
   query,
   where,
   doc,
+  runTransaction,
 } from 'firebase/firestore';
 import {
   useFirestore,
@@ -31,6 +33,7 @@ import { getRandomParagraph } from '@/lib/paragraphs';
 import { setDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Badge } from '../ui/badge';
 import { toast } from '@/hooks/use-toast';
+import { Skeleton } from '../ui/skeleton';
 
 type RaceData = {
   name: string;
@@ -109,7 +112,7 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
     }
   };
 
-  const joinRace = (raceId: string) => {
+  const joinRace = async (raceId: string) => {
     if (!user || !userProfile) {
         toast({
           variant: "destructive",
@@ -121,18 +124,41 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
     
     setJoiningRaceId(raceId);
 
-    const playerRef = doc(firestore, 'races', raceId, 'players', user.uid);
-    const playerData = {
-        id: user.uid,
-        username: userProfile.username,
-        progress: 0,
-        wpm: 0,
-        finishedTime: null,
-    };
-    
-    // Join the race, then transition
-    setDocumentNonBlocking(playerRef, playerData, { merge: true });
-    onJoinRace(raceId);
+    try {
+        const raceDocRef = doc(firestore, 'races', raceId);
+        await runTransaction(firestore, async (transaction) => {
+            const raceSnap = await transaction.get(raceDocRef);
+            if (!raceSnap.exists()) {
+                throw new Error("Race not found!");
+            }
+            
+            const playerDocRef = doc(firestore, 'races', raceId, 'players', user.uid);
+            const playerSnap = await transaction.get(playerDocRef);
+
+            if (!playerSnap.exists()) {
+                const playerData = {
+                    id: user.uid,
+                    username: userProfile.username,
+                    progress: 0,
+                    wpm: 0,
+                    finishedTime: null,
+                };
+                transaction.set(playerDocRef, playerData);
+
+                const newPlayerCount = (raceSnap.data().playerCount || 0) + 1;
+                transaction.update(raceDocRef, { playerCount: newPlayerCount });
+            }
+        });
+
+        onJoinRace(raceId);
+    } catch(error: any) {
+        toast({
+            variant: "destructive",
+            title: "Failed to join race",
+            description: error.message || "Please try again.",
+        });
+        setJoiningRaceId(null);
+    }
   };
 
 
@@ -175,13 +201,14 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {racesLoading && (
-                <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center">
-                    Loading open races...
-                  </TableCell>
+              {racesLoading && Array.from({length: 3}).map((_, i) => (
+                 <TableRow key={i}>
+                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-8" /></TableCell>
+                    <TableCell className="text-right"><Skeleton className="h-8 w-16 ml-auto" /></TableCell>
                 </TableRow>
-              )}
+              ))}
               {!racesLoading && openRaces?.length === 0 && (
                  <TableRow>
                   <TableCell colSpan={4} className="h-24 text-center">

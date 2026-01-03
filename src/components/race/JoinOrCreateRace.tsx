@@ -3,12 +3,12 @@
 
 import { useState } from 'react';
 import {
-  collection,
   doc,
-  serverTimestamp,
   getDoc,
   setDoc,
   runTransaction,
+  collection,
+  serverTimestamp,
 } from 'firebase/firestore';
 import { useFirestore, useUser, useUserProfile } from '@/firebase';
 import { Button } from '@/components/ui/button';
@@ -44,7 +44,7 @@ export default function JoinOrCreateRace({ onJoinRace }: JoinOrCreateRaceProps) 
     const maxAttempts = 100;
 
     while (!isUnique && attempts < maxAttempts) {
-      raceId = Math.floor(100 + Math.random() * 900).toString();
+      raceId = Math.floor(1000 + Math.random() * 9000).toString(); // 4-digit ID
       const raceDocRef = doc(firestore, 'races', raceId);
       const docSnap = await getDoc(raceDocRef);
       if (!docSnap.exists()) {
@@ -58,7 +58,7 @@ export default function JoinOrCreateRace({ onJoinRace }: JoinOrCreateRaceProps) 
         throw new Error("Could not find a unique race ID. Please try again.");
     }
     
-    return Math.floor(100 + Math.random() * 900).toString();
+    return Math.floor(1000 + Math.random() * 9000).toString();
   };
 
   const createRace = async () => {
@@ -87,7 +87,7 @@ export default function JoinOrCreateRace({ onJoinRace }: JoinOrCreateRaceProps) 
         createdAt: serverTimestamp(),
         host: userProfile.username,
         name: raceName.trim(),
-        playerCount: 1, // Start with 1 player (the host)
+        playerCount: 1, 
       };
 
       const raceDocRef = doc(firestore, 'races', uniqueRaceId);
@@ -140,21 +140,24 @@ export default function JoinOrCreateRace({ onJoinRace }: JoinOrCreateRaceProps) 
         if (!raceSnap.exists()) {
           throw new Error('Race not found. Please check the ID and try again.');
         }
-  
-        // Add the player to the subcollection
-        const playerRef = doc(firestore, 'races', raceDocRef.id, 'players', user.uid);
-        const playerData = {
-          id: user.uid,
-          username: userProfile.username,
-          progress: 0,
-          wpm: 0,
-          finishedTime: null,
-        };
-        transaction.set(playerRef, playerData, { merge: true });
-  
-        // Increment the player count
-        const currentCount = raceSnap.data().playerCount || 0;
-        transaction.update(raceDocRef, { playerCount: currentCount + 1 });
+
+        const playerDocRef = doc(firestore, 'races', joinRaceId.trim(), 'players', user.uid);
+        const playerSnap = await transaction.get(playerDocRef);
+
+        // Only add player and increment count if they are not already in the race
+        if (!playerSnap.exists()) {
+          const playerData = {
+            id: user.uid,
+            username: userProfile.username,
+            progress: 0,
+            wpm: 0,
+            finishedTime: null,
+          };
+          transaction.set(playerDocRef, playerData);
+    
+          const currentCount = raceSnap.data().playerCount || 0;
+          transaction.update(raceDocRef, { playerCount: currentCount + 1 });
+        }
       });
   
       onJoinRace(joinRaceId.trim());
@@ -194,10 +197,11 @@ export default function JoinOrCreateRace({ onJoinRace }: JoinOrCreateRaceProps) 
                         <Label htmlFor="join-race-id">Race ID</Label>
                         <Input
                         id="join-race-id"
-                        placeholder="Enter Race ID"
+                        placeholder="Enter 4-digit Race ID"
                         value={joinRaceId}
                         onChange={(e) => setJoinRaceId(e.target.value)}
                         disabled={isJoining}
+                        maxLength={4}
                         />
                     </div>
                     <Button onClick={handleJoinRace} disabled={isJoining || !userProfile} className="w-full">

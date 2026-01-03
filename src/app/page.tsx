@@ -13,12 +13,14 @@ export default function LoginPage() {
   const router = useRouter()
 
   useEffect(() => {
+    // Only redirect if the user is definitively logged in and loading is complete.
     if (!isUserLoading && user) {
       router.push('/game')
     }
   }, [user, isUserLoading, router])
 
-  if (isUserLoading || user) {
+  // While checking auth state, show a loader. This prevents the login form from flashing.
+  if (isUserLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="h-16 w-16 animate-spin rounded-full border-4 border-dashed border-primary"></div>
@@ -26,6 +28,17 @@ export default function LoginPage() {
     )
   }
   
+  // If the user is already logged in, they will be redirected. 
+  // We can show a loader or null while the redirect is in flight.
+  if(user) {
+     return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="h-16 w-16 animate-spin rounded-full border-4 border-dashed border-primary"></div>
+      </div>
+    )
+  }
+
+  // Only show the login form if the user is not logged in and auth check is complete.
   return (
     <div className="container flex h-screen items-center justify-center">
       <Card className="mx-auto max-w-sm">

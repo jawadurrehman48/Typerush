@@ -5,9 +5,9 @@ import { useState } from 'react';
 import {
   collection,
   doc,
-  addDoc,
   serverTimestamp,
   getDoc,
+  setDoc,
 } from 'firebase/firestore';
 import { useFirestore, useUser, useUserProfile } from '@/firebase';
 import { Button } from '@/components/ui/button';
@@ -37,6 +37,33 @@ export default function JoinOrCreateRace({ onJoinRace }: JoinOrCreateRaceProps) 
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
 
+  // Function to generate a unique 3-digit race ID
+  const generateUniqueRaceId = async (): Promise<string> => {
+    let raceId: string;
+    let isUnique = false;
+    let attempts = 0;
+    const maxAttempts = 100; // Prevent infinite loop
+
+    while (!isUnique && attempts < maxAttempts) {
+      // Generate a random 3-digit number (100-999)
+      raceId = Math.floor(100 + Math.random() * 900).toString();
+      const raceDocRef = doc(firestore, 'races', raceId);
+      const docSnap = await getDoc(raceDocRef);
+      if (!docSnap.exists()) {
+        isUnique = true;
+        return raceId;
+      }
+      attempts++;
+    }
+    
+    if (attempts >= maxAttempts) {
+        throw new Error("Could not find a unique race ID. Please try again.");
+    }
+    
+    // This line should not be reached if the loop works correctly
+    return Math.floor(100 + Math.random() * 900).toString();
+  };
+
   const createRace = async () => {
     if (!user || !userProfile || !raceName.trim()) {
       toast({
@@ -51,8 +78,10 @@ export default function JoinOrCreateRace({ onJoinRace }: JoinOrCreateRaceProps) 
 
     try {
       const { paragraph, id: paragraphId } = await getRandomParagraph(firestore);
+      const uniqueRaceId = await generateUniqueRaceId();
 
       const newRace = {
+        id: uniqueRaceId,
         paragraphId: paragraphId,
         paragraphText: paragraph,
         status: 'waiting',
@@ -63,20 +92,20 @@ export default function JoinOrCreateRace({ onJoinRace }: JoinOrCreateRaceProps) 
         name: raceName.trim(),
       };
 
-      const racesRef = collection(firestore, 'races');
-      const raceDocRef = await addDoc(racesRef, newRace);
+      const raceDocRef = doc(firestore, 'races', uniqueRaceId);
+      await setDoc(raceDocRef, newRace);
       
-      setCreatedRaceId(raceDocRef.id);
+      setCreatedRaceId(uniqueRaceId);
       
       toast({
         title: "Race Created!",
         description: "Share the Race ID with your friends to have them join.",
       });
-    } catch (error) {
+    } catch (error: any) {
        toast({
         variant: "destructive",
         title: "Failed to create race",
-        description: "Please try again later.",
+        description: error.message || "Please try again later.",
       });
     } finally {
       setIsCreating(false);

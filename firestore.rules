@@ -7,6 +7,8 @@
  * - /users/{userId}: Contains private UserProfile documents, keyed by the user's auth UID.
  * - /leaderboard/{leaderboardEntryId}: A global collection of all game scores, designed for
  *   public consumption.
+ * - /races/{raceId}: Contains documents for multiplayer races.
+ * - /races/{raceId}/players/{userId}: Contains player-specific data for a given race.
  *
  * Key Security Decisions:
  * - User Enumeration is Disallowed: The top-level `/users` collection is not listable,
@@ -17,6 +19,9 @@
  *   unauthenticated guests, to allow for displaying high scores.
  * - Leaderboard Integrity: Users can only create, update, or delete leaderboard entries that
  *   belong to them, enforced by checking a `userId` field on each entry.
+ * - Race Access Control: Races are publicly readable, but only authenticated users can create
+ *   them. Joining and updating race progress is restricted to authenticated participants. The
+ *   race host has special privileges to manage the race state.
  *
  * Denormalization for Authorization:
  * - The `LeaderboardEntry` document contains a `userId` field. This is a deliberate design
@@ -25,7 +30,7 @@
  *   secure.
  *
  * Structural Segregation:
- * - Private data (`UserProfile`) and public data (`LeaderboardEntry`) are stored in separate
+ * - Private data (`UserProfile`) and public data (`LeaderboardEntry`, `Race`) are stored in separate
  *   top-level collections. This is a best practice that simplifies rules for list operations
  *   and improves query performance and security, preventing accidental exposure of private data.
  */
@@ -59,6 +64,15 @@ service cloud.firestore {
     function isExistingOwner(ownerId) {
       return isOwner(ownerId) && resource != null;
     }
+
+    /**
+     * Checks if the authenticated user is the host of the race.
+     * It looks up the `host` field on the existing race document.
+     */
+    function isRaceHost(raceId) {
+      return isSignedIn() && get(/databases/$(database)/documents/races/$(raceId)).data.host == request.auth.token.name;
+    }
+
 
     /**
      * Validates a new UserProfile document.
@@ -95,6 +109,26 @@ service cloud.firestore {
       return request.resource.data.userId == resource.data.userId;
     }
 
+    /**
+     * Validates a new Race document.
+     * Ensures the `host` field is set to the creator's username.
+     */
+    function isCreatingValidRace() {
+      let username = get(/databases/$(database)/documents/users/$(request.auth.uid)).data.username;
+      return request.resource.data.host == username;
+    }
+
+    /**
+     * Validates an update to a Race document.
+     * Only allows the host to change the status or winner.
+     */
+    function isUpdatingValidRace(raceId) {
+      return isRaceHost(raceId)
+          && request.resource.data.id == resource.data.id
+          && request.resource.data.host == resource.data.host
+          && request.resource.data.createdAt == resource.data.createdAt;
+    }
+
     //----------------------------------------------------------------//
     //                       Collection Rules                         //
     //----------------------------------------------------------------//
@@ -103,10 +137,6 @@ service cloud.firestore {
      * @description Controls access to private user profile data. Only the document owner can
      *              read or write their own profile. Listing all users is forbidden.
      * @path        /users/{userId}
-     * @allow       (get, update) - An authenticated user ('user_abc') can read and update their own profile at `/users/user_abc`.
-     * @deny        (get) - User 'user_abc' cannot get the profile at `/users/user_xyz`.
-     * @deny        (list) - No user, authenticated or not, can list the `/users` collection.
-     * @principle   Restricts access to a user's own data tree and prevents user enumeration.
      */
     match /users/{userId} {
       allow get: if isOwner(userId);
@@ -121,11 +151,6 @@ service cloud.firestore {
      *              anyone, but entries can only be created, updated, or deleted by the user
      *              who achieved the score.
      * @path        /leaderboard/{leaderboardEntryId}
-     * @allow       (get, list) - Any user, including unauthenticated guests, can read any leaderboard entry or list the entire collection.
-     * @allow       (create) - An authenticated user ('user_abc') can create a new leaderboard entry as long as its `userId` field is 'user_abc'.
-     * @deny        (create) - User 'user_abc' cannot create an entry with a `userId` of 'user_xyz'.
-     * @deny        (update) - User 'user_abc' cannot update an existing entry where `resource.data.userId` is 'user_xyz'.
-     * @principle   Enables public-read access while enforcing document ownership for all write operations.
      */
     match /leaderboard/{leaderboardEntryId} {
       allow get: if true;
@@ -133,6 +158,33 @@ service cloud.firestore {
       allow create: if isSignedIn() && isCreatingValidLeaderboardEntry();
       allow update: if isExistingOwner(resource.data.userId) && isUpdatingValidLeaderboardEntry();
       allow delete: if isExistingOwner(resource.data.userId);
+    }
+
+    /**
+     * @description Controls access to multiplayer races. Races are publicly readable. Only
+     *              authenticated users can create races. The race host can start the race,
+     *              and players can join and update their own progress.
+     * @path        /races/{raceId}
+     */
+    match /races/{raceId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && isCreatingValidRace();
+      allow update: if isUpdatingValidRace(raceId);
+      allow delete: if isRaceHost(raceId);
+
+      /**
+       * @description Controls access to player data within a race. Players can only create,
+       *              update, and delete their own document.
+       * @path        /races/{raceId}/players/{userId}
+       */
+      match /players/{userId} {
+        allow get: if isSignedIn();
+        allow list: if isSignedIn();
+        allow create: if isOwner(userId);
+        allow update: if isExistingOwner(userId);
+        allow delete: if isExistingOwner(userId);
+      }
     }
   }
 }

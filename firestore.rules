@@ -170,7 +170,12 @@ service cloud.firestore {
      * @path        /leaderboard/{leaderboardEntryId}
      */
     match /leaderboard/{leaderboardEntryId} {
-      allow get, list: if true;
+      allow get: if true;
+      allow list: if 
+          // Public leaderboard query: Must be ordered by score, limited to top 10
+          (request.query.orderBy.size() == 1 && request.query.orderBy[0].field == 'score' && request.query.limit <= 10) ||
+          // User's own history query: Must be for the signed-in user
+          (isSignedIn() && request.query.where.userId == request.auth.uid);
       allow create: if isSignedIn() && isCreatingValidLeaderboardEntry();
       allow update: if isExistingOwner(resource.data.userId) && isUpdatingValidLeaderboardEntry();
       allow delete: if isExistingOwner(resource.data.userId);
@@ -215,3 +220,5 @@ service cloud.firestore {
     }
   }
 }
+
+    

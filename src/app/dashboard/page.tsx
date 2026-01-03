@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/chart';
 import { Bar, BarChart as RechartsBarChart, XAxis, YAxis } from 'recharts';
 import Header from '@/components/layout/Header';
-import { useUserProfile, useFirestore, useCollection } from '@/firebase';
+import { useUserProfile, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { useMemo } from 'react';
 import { collection, query, where, orderBy, limit } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -33,7 +33,7 @@ export default function DashboardPage() {
   const { data: userProfile, isLoading: isProfileLoading } = useUserProfile();
   const firestore = useFirestore();
 
-  const userGameHistoryQuery = useMemo(() => {
+  const userGameHistoryQuery = useMemoFirebase(() => {
     if (!userProfile || !firestore) return null;
     return query(
       collection(firestore, 'leaderboard'),

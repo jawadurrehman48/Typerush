@@ -40,11 +40,11 @@ export function UserAuthForm({ className, ...props }: UserAuthFormProps) {
     setIsLoading(true);
     try {
       await signInWithEmailAndPassword(auth, data.email, data.password);
+      // The redirect is handled by the page's useEffect, so we don't need to push the router here.
       toast({
         title: "Login Successful",
         description: "You are now logged in.",
       });
-      router.push('/game');
     } catch (error: any) {
       toast({
         variant: "destructive",

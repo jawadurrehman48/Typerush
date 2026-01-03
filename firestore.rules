@@ -17,13 +17,10 @@
  *   preventing malicious actors from scraping all user profiles.
  * - Strict Profile Ownership: A user can only access and modify their own document within
  *   the `/users` collection.
- * - Public Leaderboard: The `/leaderboard` collection is publicly readable by anyone, including
- *   unauthenticated guests, to allow for displaying high scores.
- * - Leaderboard Integrity: Users can only create, update, or delete leaderboard entries that
- *   belong to them, enforced by checking a `userId` field on each entry.
- * - Race Access Control: Races are publicly readable, but only authenticated users can create
- *   them. Joining and updating race progress is restricted to authenticated participants. The
- *   race host has special privileges to manage the race state.
+ * - Public Leaderboard & Races: The `/leaderboard` and `/races` collections are publicly readable
+ *   by anyone, including unauthenticated guests, to allow for displaying high scores and open games.
+ * - Data Integrity: Users can only create, update, or delete entries (like leaderboard scores
+ *   or race data) that belong to them, enforced by checking a `userId` field or host status.
  * - Public Paragraphs: The `/paragraphs` collection is publicly readable so that any user or
  *   guest can start a typing test. Writes should only be done via trusted server-side code (e.g. seeding script).
  *
@@ -171,9 +168,7 @@ service cloud.firestore {
      */
     match /leaderboard/{leaderboardEntryId} {
       allow get: if true;
-      allow list: if 
-          // Public leaderboard query: Must be ordered by score, limited to top 10
-          (request.query.orderBy == 'score' && request.query.limit <= 10);
+      allow list: if true;
       allow create: if isSignedIn() && isCreatingValidLeaderboardEntry();
       allow update: if isExistingOwner(resource.data.userId) && isUpdatingValidLeaderboardEntry();
       allow delete: if isExistingOwner(resource.data.userId);
@@ -186,8 +181,8 @@ service cloud.firestore {
      * @path        /races/{raceId}
      */
     match /races/{raceId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
+      allow get: if true;
+      allow list: if true;
       allow create: if isSignedIn() && isCreatingValidRace();
       allow update: if isUpdatingValidRace(raceId);
       allow delete: if isRaceHost(raceId);

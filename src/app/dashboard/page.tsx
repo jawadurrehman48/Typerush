@@ -97,23 +97,20 @@ export default function DashboardPage() {
 
     setIsUpdating(true);
     try {
-      let photoURL = userProfile?.photoURL;
       const updates: {username: string, photoURL?: string} = { username: newUsername };
 
       if (newPhoto) {
-        // Storing the image as a base64 string in Firestore.
-        // For production apps, Firebase Storage is recommended for performance and cost.
         const reader = new FileReader();
         const promise = new Promise<string>((resolve, reject) => {
           reader.onloadend = () => resolve(reader.result as string);
           reader.onerror = reject;
           reader.readAsDataURL(newPhoto);
         });
-        photoURL = await promise;
+        const photoURL = await promise;
         updates.photoURL = photoURL;
       }
-
-      // Update Firebase Auth display name (but not photoURL to avoid length limits)
+      
+      // Update Firebase Auth display name
       if (user.displayName !== newUsername) {
         await updateProfile(user, {
             displayName: newUsername,
@@ -284,7 +281,7 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-4">
                   {isProfileLoading ? <Skeleton className="h-16 w-16 rounded-full" /> :
                     <Image
-                      src={photoPreview || `https://picsum.photos/seed/${userProfile?.username || 'user'}/64/64`}
+                      src={photoPreview || userProfile?.photoURL || `https://picsum.photos/seed/${userProfile?.username || 'user'}/64/64`}
                       alt="Avatar preview"
                       width={64}
                       height={64}

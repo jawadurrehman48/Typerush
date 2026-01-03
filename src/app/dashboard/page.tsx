@@ -1,4 +1,3 @@
-
 'use client';
 
 import { BarChart, Clock, Target, TrendingUp, User as UserIcon } from 'lucide-react';
@@ -75,11 +74,11 @@ export default function DashboardPage() {
   useEffect(() => {
     if (userProfile) {
       setNewUsername(userProfile.username);
+      if (userProfile.photoURL) {
+        setPhotoPreview(userProfile.photoURL);
+      }
     }
-    if (user?.photoURL) {
-      setPhotoPreview(user.photoURL);
-    }
-  }, [userProfile, user]);
+  }, [userProfile]);
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -98,11 +97,12 @@ export default function DashboardPage() {
 
     setIsUpdating(true);
     try {
-      let photoURL = user.photoURL;
+      let photoURL = userProfile?.photoURL;
+      const updates: {username: string, photoURL?: string} = { username: newUsername };
 
       if (newPhoto) {
-        // For simplicity, we are storing the image as a base64 string.
-        // For production apps, Firebase Storage is recommended.
+        // Storing the image as a base64 string in Firestore.
+        // For production apps, Firebase Storage is recommended for performance and cost.
         const reader = new FileReader();
         const promise = new Promise<string>((resolve, reject) => {
           reader.onloadend = () => resolve(reader.result as string);
@@ -110,20 +110,19 @@ export default function DashboardPage() {
           reader.readAsDataURL(newPhoto);
         });
         photoURL = await promise;
+        updates.photoURL = photoURL;
       }
 
-      // Update Firebase Auth profile
-      await updateProfile(user, {
-        displayName: newUsername,
-        photoURL: photoURL,
-      });
+      // Update Firebase Auth display name (but not photoURL to avoid length limits)
+      if (user.displayName !== newUsername) {
+        await updateProfile(user, {
+            displayName: newUsername,
+        });
+      }
 
       // Update Firestore profile
       const userDocRef = doc(firestore, 'users', user.uid);
-      await updateDoc(userDocRef, {
-        username: newUsername,
-        photoURL: photoURL,
-      });
+      await updateDoc(userDocRef, updates);
 
       toast({
         title: 'Profile Updated',
@@ -312,5 +311,3 @@ export default function DashboardPage() {
     </>
   );
 }
-
-    

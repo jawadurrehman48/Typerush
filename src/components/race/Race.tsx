@@ -19,10 +19,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
-import { RefreshCw, LogOut, Trophy } from 'lucide-react';
+import { LogOut, Trophy, Check, Copy } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import Image from 'next/image';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { toast } from '@/hooks/use-toast';
+
 
 type RaceStatus = 'waiting' | 'running' | 'finished';
 
@@ -52,6 +54,8 @@ type RaceProps = {
 const Race = ({ raceId, onLeave }: RaceProps) => {
   const firestore = useFirestore();
   const { user } = useUser();
+
+  const [copied, setCopied] = useState(false);
 
   const raceRef = useMemoFirebase(
     () => (firestore ? doc(firestore, 'races', raceId) : null),
@@ -156,7 +160,7 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
   
   useEffect(() => {
     // Only update progress if the game is running and the player hasn't finished
-    if (status === 'running' && localPlayerRef && !isFinished && progress > 0) {
+    if (status === 'running' && localPlayerRef && !isFinished && progress >= 0) {
       const updatePayload = {
         progress,
         wpm,
@@ -169,7 +173,7 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
   /* ------------------ HANDLERS ------------------ */
 
   const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (isFinished || status !== 'running' || !localPlayerRef || !raceRef || !firestore) return;
+    if (isFinished || status !== 'running' || !localPlayerRef || !raceRef || !firestore || !raceData) return;
 
     const value = e.target.value;
     setUserInput(value);
@@ -182,21 +186,26 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
       const correctChars = value.split('').filter((char, i) => char === text[i]).length;
       const finalWpm = Math.round((correctChars / 5) / (duration / 60));
 
-      // Mark the local player as finished
-      await updateDoc(localPlayerRef, {
+      const finalPlayerUpdate = {
         finishedTime: duration,
         progress: 100,
         wpm: finalWpm,
-      });
+      };
+
+      // Mark the local player as finished
+      // We await this one to make sure the player's final stats are recorded before winner check
+      await updateDoc(localPlayerRef, finalPlayerUpdate);
 
       // Atomically try to become the winner
       // This update will only succeed if winnerId is currently null
-      if (!raceData.winnerId) {
+      if (raceData && !raceData.winnerId && user) {
         updateDocumentNonBlocking(raceRef, {
-            status: 'finished',
-            winnerId: user?.uid,
+            winnerId: user.uid,
         });
       }
+      
+      // The race is globally marked as finished by the winner or a cloud function later
+      // For now, the client just knows this player is done
     }
   };
   
@@ -207,6 +216,13 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
         startTime: serverTimestamp(),
       });
     }
+  };
+
+  const copyRaceId = () => {
+    navigator.clipboard.writeText(raceId);
+    setCopied(true);
+    toast({ title: "Race ID copied!" });
+    setTimeout(() => setCopied(false), 2000);
   };
 
   /* ------------------ UI ------------------ */
@@ -222,12 +238,17 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
   return (
     <Card className="w-full border-2 shadow-lg">
       <CardContent className="p-6">
-        <div className="mb-6 flex items-start justify-between">
-          <div>
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div className="flex flex-col">
             <h2 className="text-2xl font-bold tracking-tighter text-primary">
               {raceData?.name}
             </h2>
-            <p className="text-sm text-muted-foreground">Race ID: {raceId}</p>
+            <div className="flex items-center gap-2">
+                <p className="text-sm font-mono text-muted-foreground">ID: {raceId}</p>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={copyRaceId}>
+                    {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                </Button>
+            </div>
           </div>
           <div className="flex flex-col items-end gap-2">
             <Badge
@@ -331,7 +352,7 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
         {isFinished && (
           <div className="mt-6 rounded-lg bg-background p-4 text-center">
             <h2 className="text-3xl font-bold text-primary">You Finished!</h2>
-             {winner?.id === user?.uid && status === 'finished' && (
+             {winner?.id === user?.uid && status !== 'waiting' && (
                 <div className="mb-4 mt-2 flex items-center justify-center gap-2 text-yellow-500">
                     <Trophy className="h-8 w-8" />
                     <p className="text-2xl font-bold">You Won!</p>
@@ -353,7 +374,7 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
                  <p className="mb-4 text-lg text-muted-foreground">{winner.username} won the race!</p>
             )}
             <Button className="mt-4" onClick={onLeave}>
-              <RefreshCw className="mr-2 h-4 w-4" /> New Race
+              Find New Race
             </Button>
           </div>
         )}
@@ -363,5 +384,3 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
 };
 
 export default Race;
-
-    

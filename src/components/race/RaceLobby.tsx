@@ -5,10 +5,8 @@ import { useState } from 'react';
 import {
   doc,
   runTransaction,
-  serverTimestamp,
-  collection,
-  setDoc,
   getDoc,
+  collection,
 } from 'firebase/firestore';
 import { useFirestore, useUser, useUserProfile } from '@/firebase';
 import { Button } from '@/components/ui/button';
@@ -67,37 +65,41 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
       const { paragraph } = await getRandomParagraph(firestore);
       const newRaceId = await generateUniqueRaceId(firestore);
       
-      const newRace = {
-        id: newRaceId,
-        name: raceName.trim(),
-        host: userProfile.username,
-        paragraphText: paragraph,
-        status: 'waiting',
-        startTime: null,
-        winnerId: null,
-        createdAt: serverTimestamp(),
-        playerCount: 0, 
-      };
-
       const raceDocRef = doc(firestore, 'races', newRaceId);
-      await setDoc(raceDocRef, newRace);
+      const playerDocRef = doc(firestore, 'races', newRaceId, 'players', user.uid);
+
+      await runTransaction(firestore, async (transaction) => {
+        const newRace = {
+          id: newRaceId,
+          name: raceName.trim(),
+          host: userProfile.username,
+          paragraphText: paragraph,
+          status: 'waiting',
+          startTime: null,
+          winnerId: null,
+          playerCount: 1, // Start with 1 player (the host)
+        };
+
+        const playerData = {
+          id: user.uid,
+          username: userProfile.username,
+          progress: 0,
+          wpm: 0,
+          finishedTime: null,
+          photoURL: userProfile.photoURL ?? null
+        };
+        
+        transaction.set(raceDocRef, newRace);
+        transaction.set(playerDocRef, playerData);
+      });
       
       toast({
-        title: "Race Created!",
-        description: `Your race ID is ${newRaceId}. Share it with friends!`,
-        duration: 9000,
-        action: (
-            <div className="flex gap-2">
-                 <Button size="sm" onClick={() => joinRace(newRaceId)}>
-                    Join Race
-                </Button>
-                <Button variant="secondary" size="sm" onClick={() => navigator.clipboard.writeText(newRaceId)}>
-                    Copy ID
-                </Button>
-            </div>
-        ),
+        title: "Race Created & Joined!",
+        description: `Your new race is ready.`,
       });
-      setRaceName(''); // Clear input after creation
+
+      onJoinRace(newRaceId); // Automatically join the race
+
     } catch (error: any) {
        toast({
         variant: "destructive",
@@ -183,7 +185,7 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
           <TabsContent value="create" className="p-6">
             <CardHeader className="p-0 mb-4">
               <CardTitle>Create a New Race</CardTitle>
-              <CardDescription>Start a new race and share the ID with your friends.</CardDescription>
+              <CardDescription>Start a new race and you will automatically join it.</CardDescription>
             </CardHeader>
             <div className="space-y-4">
               <div className="space-y-2">
@@ -197,7 +199,7 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
                 />
               </div>
               <Button onClick={createRace} disabled={isCreating || !userProfile} className="w-full">
-                {isCreating ? "Creating..." : "Create Race"}
+                {isCreating ? "Creating..." : "Create & Join Race"}
               </Button>
             </div>
           </TabsContent>
@@ -227,5 +229,3 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
     </Card>
   );
 }
-
-    

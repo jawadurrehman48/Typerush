@@ -1,46 +1,25 @@
-
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import {
-  collection,
-  query,
-  where,
   doc,
+  getDoc,
+  setDoc,
   runTransaction,
+  serverTimestamp,
+  addDoc,
+  collection,
 } from 'firebase/firestore';
-import {
-  useFirestore,
-  useCollection,
-  useUser,
-  useUserProfile,
-  WithId,
-  useMemoFirebase,
-} from '@/firebase';
+import { useFirestore, useUser, useUserProfile } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { getRandomParagraph } from '@/lib/paragraphs';
-import { setDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { Badge } from '../ui/badge';
 import { toast } from '@/hooks/use-toast';
-import { Skeleton } from '../ui/skeleton';
-
-type RaceData = {
-  name: string;
-  host: string;
-  status: 'waiting' | 'running' | 'finished';
-  playerCount?: number;
-};
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Clipboard, ClipboardCheck } from 'lucide-react';
+import { setDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
 type RaceLobbyProps = {
   onJoinRace: (raceId: string) => void;
@@ -50,121 +29,152 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
   const firestore = useFirestore();
   const { user } = useUser();
   const { data: userProfile } = useUserProfile();
-
+  
   const [raceName, setRaceName] = useState('');
+  const [joinRaceId, setJoinRaceId] = useState('');
+  const [createdRaceId, setCreatedRaceId] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  
   const [isCreating, setIsCreating] = useState(false);
-  const [joiningRaceId, setJoiningRaceId] = useState<string | null>(null);
+  const [isJoining, setIsJoining] = useState(false);
 
-  const openRacesQuery = useMemoFirebase(
-    () =>
-      firestore
-        ? query(collection(firestore, 'races'), where('status', '==', 'waiting'))
-        : null,
-    [firestore]
-  );
-  const { data: openRaces, isLoading: racesLoading } = useCollection<RaceData>(openRacesQuery);
+  const generateUniqueRaceId = async (): Promise<string> => {
+    let raceId: string;
+    let isUnique = false;
+    let attempts = 0;
+    const maxAttempts = 100;
+
+    while (!isUnique && attempts < maxAttempts) {
+      raceId = Math.floor(1000 + Math.random() * 9000).toString(); // 4-digit ID
+      const raceDocRef = doc(firestore, 'races', raceId);
+      const docSnap = await getDoc(raceDocRef);
+      if (!docSnap.exists()) {
+        isUnique = true;
+        return raceId;
+      }
+      attempts++;
+    }
+    
+    if (attempts >= maxAttempts) {
+        throw new Error("Could not find a unique race ID. Please try again.");
+    }
+    
+    // Fallback in the unlikely event of loop failure
+    return Math.floor(1000 + Math.random() * 9000).toString();
+  };
 
   const createRace = async () => {
-    if (!user || !userProfile || !raceName.trim()) return;
+    if (!user || !userProfile || !raceName.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Race name is required.",
+      });
+      return;
+    }
+    
     setIsCreating(true);
 
     try {
-      const { paragraph, id: paragraphId } = await getRandomParagraph(firestore);
-
+      const { paragraph } = await getRandomParagraph(firestore);
+      
       const newRace = {
         name: raceName.trim(),
         host: userProfile.username,
-        paragraphId: paragraphId,
         paragraphText: paragraph,
         status: 'waiting',
         startTime: null,
         winnerId: null,
-        createdAt: new Date(),
-        playerCount: 1,
+        createdAt: serverTimestamp(),
+        playerCount: 1, 
       };
-      
-      const racesRef = collection(firestore, 'races');
-      const raceDocRef = await addDocumentNonBlocking(racesRef, newRace);
-      
-      if(raceDocRef) {
-        const playerRef = doc(firestore, 'races', raceDocRef.id, 'players', user.uid);
-        const playerData = {
-          id: user.uid,
-          username: userProfile.username,
-          progress: 0,
-          wpm: 0,
-          finishedTime: null,
-        };
-        setDocumentNonBlocking(playerRef, playerData, { merge: true });
-        onJoinRace(raceDocRef.id);
-      } else {
-        throw new Error("Failed to create race document.");
-      }
 
-    } catch (error) {
+      const racesCollection = collection(firestore, 'races');
+      const raceDocRef = await addDoc(racesCollection, newRace);
+      const newRaceId = raceDocRef.id;
+
+      const playerRef = doc(firestore, 'races', newRaceId, 'players', user.uid);
+      const playerData = {
+        id: user.uid,
+        username: userProfile.username,
+        progress: 0,
+        wpm: 0,
+        finishedTime: null,
+      };
+      await setDoc(playerRef, playerData);
+      
+      onJoinRace(newRaceId);
+      
+      toast({
+        title: "Race Created!",
+        description: "Your race is ready to start.",
+      });
+    } catch (error: any) {
        toast({
         variant: "destructive",
         title: "Failed to create race",
-        description: "Please try again later.",
+        description: error.message || "Please try again later.",
       });
     } finally {
       setIsCreating(false);
     }
   };
 
-  const joinRace = async (raceId: string) => {
-    if (!user || !userProfile) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "You must be logged in to join a race.",
-        });
-        return;
-    };
-    
-    setJoiningRaceId(raceId);
-
+  const joinRace = async () => {
+    if (!joinRaceId.trim() || !user || !userProfile) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Race ID is required and you must be logged in.',
+      });
+      return;
+    }
+    setIsJoining(true);
+  
     try {
-        const raceDocRef = doc(firestore, 'races', raceId);
-        await runTransaction(firestore, async (transaction) => {
-            const raceSnap = await transaction.get(raceDocRef);
-            if (!raceSnap.exists()) {
-                throw new Error("Race not found!");
-            }
-            
-            const playerDocRef = doc(firestore, 'races', raceId, 'players', user.uid);
-            const playerSnap = await transaction.get(playerDocRef);
+      const raceDocRef = doc(firestore, 'races', joinRaceId.trim());
+  
+      await runTransaction(firestore, async (transaction) => {
+        const raceSnap = await transaction.get(raceDocRef);
+  
+        if (!raceSnap.exists()) {
+          throw new Error('Race not found. Please check the ID and try again.');
+        }
 
-            if (!playerSnap.exists()) {
-                const playerData = {
-                    id: user.uid,
-                    username: userProfile.username,
-                    progress: 0,
-                    wpm: 0,
-                    finishedTime: null,
-                };
-                transaction.set(playerDocRef, playerData);
+        const playerDocRef = doc(firestore, 'races', joinRaceId.trim(), 'players', user.uid);
+        const playerSnap = await transaction.get(playerDocRef);
 
-                const newPlayerCount = (raceSnap.data().playerCount || 0) + 1;
-                transaction.update(raceDocRef, { playerCount: newPlayerCount });
-            }
-        });
-
-        onJoinRace(raceId);
-    } catch(error: any) {
-        toast({
-            variant: "destructive",
-            title: "Failed to join race",
-            description: error.message || "Please try again.",
-        });
-        setJoiningRaceId(null);
+        if (!playerSnap.exists()) {
+          const playerData = {
+            id: user.uid,
+            username: userProfile.username,
+            progress: 0,
+            wpm: 0,
+            finishedTime: null,
+          };
+          transaction.set(playerDocRef, playerData);
+    
+          const currentCount = raceSnap.data().playerCount || 0;
+          transaction.update(raceDocRef, { playerCount: currentCount + 1 });
+        }
+      });
+  
+      onJoinRace(joinRaceId.trim());
+  
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Failed to join race',
+        description: error.message || 'Please check the ID and try again.',
+      });
+    } finally {
+      setIsJoining(false);
     }
   };
 
-
   return (
     <div className="grid gap-8 md:grid-cols-2">
-      <Card>
+         <Card>
         <CardHeader>
           <CardTitle>Create a New Race</CardTitle>
           <CardDescription>Start a new race and invite your friends.</CardDescription>
@@ -187,55 +197,23 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
       </Card>
       <Card>
         <CardHeader>
-          <CardTitle>Join an Open Race</CardTitle>
-          <CardDescription>See who is waiting for a challenger.</CardDescription>
+            <CardTitle>Join a Race</CardTitle>
+            <CardDescription>Enter the Race ID you received from a friend.</CardDescription>
         </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Host</TableHead>
-                <TableHead>Players</TableHead>
-                <TableHead></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {racesLoading && Array.from({length: 3}).map((_, i) => (
-                 <TableRow key={i}>
-                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-16" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-8" /></TableCell>
-                    <TableCell className="text-right"><Skeleton className="h-8 w-16 ml-auto" /></TableCell>
-                </TableRow>
-              ))}
-              {!racesLoading && openRaces?.length === 0 && (
-                 <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center">
-                    No open races found. Why not create one?
-                  </TableCell>
-                </TableRow>
-              )}
-              {openRaces?.map((race: WithId<RaceData>) => (
-                <TableRow key={race.id}>
-                  <TableCell className="font-medium">{race.name}</TableCell>
-                  <TableCell>{race.host}</TableCell>
-                   <TableCell>
-                    <Badge variant="outline">{race.playerCount || 1}</Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      onClick={() => joinRace(race.id)}
-                      disabled={joiningRaceId === race.id || !userProfile}
-                      size="sm"
-                    >
-                      {joiningRaceId === race.id ? "Joining..." : "Join"}
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <CardContent className="space-y-4">
+            <div className="space-y-2">
+                <Label htmlFor="join-race-id">Race ID</Label>
+                <Input
+                id="join-race-id"
+                placeholder="Enter Race ID"
+                value={joinRaceId}
+                onChange={(e) => setJoinRaceId(e.target.value)}
+                disabled={isJoining}
+                />
+            </div>
+            <Button onClick={joinRace} disabled={isJoining || !userProfile} className="w-full">
+                {isJoining ? "Joining..." : "Join Race"}
+            </Button>
         </CardContent>
       </Card>
     </div>

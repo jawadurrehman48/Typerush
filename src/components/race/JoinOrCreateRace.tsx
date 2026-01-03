@@ -121,7 +121,7 @@ export default function JoinOrCreateRace({ onJoinRace }: JoinOrCreateRaceProps) 
   };
 
   const handleJoinRace = async () => {
-    if (!user || !userProfile || !joinRaceId.trim()) {
+    if (!joinRaceId.trim()) {
        toast({
         variant: "destructive",
         title: "Error",
@@ -133,35 +133,11 @@ export default function JoinOrCreateRace({ onJoinRace }: JoinOrCreateRaceProps) 
 
     try {
         const raceDocRef = doc(firestore, 'races', joinRaceId.trim());
+        const raceSnap = await getDoc(raceDocRef);
 
-        await runTransaction(firestore, async (transaction) => {
-            const raceSnap = await transaction.get(raceDocRef);
-
-            if (!raceSnap.exists()) {
-                throw new Error("Race not found. The provided Race ID is invalid.");
-            }
-
-            const raceData = raceSnap.data();
-            if (raceData.status !== 'waiting') {
-                throw new Error("This race has already started or is finished.");
-            }
-
-            if ((raceData.playerCount || 0) >= 10) {
-                 throw new Error("This race is full.");
-            }
-
-            const playerRef = doc(firestore, 'races', raceSnap.id, 'players', user.uid);
-            const playerData = {
-                id: user.uid,
-                username: userProfile.username,
-                progress: 0,
-                wpm: 0,
-                finishedTime: null,
-            };
-            
-            transaction.set(playerRef, playerData, { merge: true });
-            transaction.update(raceDocRef, { playerCount: (raceData.playerCount || 0) + 1 });
-        });
+        if (!raceSnap.exists()) {
+            throw new Error("Race not found. The provided Race ID is invalid.");
+        }
         
         onJoinRace(joinRaceId.trim());
 

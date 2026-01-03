@@ -24,45 +24,46 @@ import {
 } from '@/components/ui/chart';
 import { Bar, BarChart as RechartsBarChart, XAxis, YAxis } from 'recharts';
 import Header from '@/components/layout/Header';
-import { useUserProfile, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { useMemo } from 'react';
-import { collection, query, where, orderBy, limit } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 
+// Static data to replace Firebase queries
+const staticUserProfile = {
+  gamesPlayed: 25,
+  highestWPM: 120,
+};
+
+const staticUserGameHistory = [
+  { id: '1', score: 95, accuracy: 98, timestamp: new Date('2024-07-20T10:00:00Z') },
+  { id: '2', score: 105, accuracy: 99, timestamp: new Date('2024-07-19T11:00:00Z') },
+  { id: '3', score: 98, accuracy: 96, timestamp: new Date('2024-07-18T09:30:00Z') },
+  { id: '4', score: 110, accuracy: 97, timestamp: new Date('2024-07-17T14:00:00Z') },
+  { id: '5', score: 88, accuracy: 95, timestamp: new Date('2024-07-16T16:00:00Z') },
+  { id: '6', score: 115, accuracy: 98, timestamp: new Date('2024-07-15T12:00:00Z') },
+  { id: '7', score: 102, accuracy: 99, timestamp: new Date('2024-07-14T08:00:00Z') },
+];
+
 export default function DashboardPage() {
-  const { data: userProfile, isLoading: isProfileLoading } = useUserProfile();
-  const firestore = useFirestore();
-
-  const userGameHistoryQuery = useMemoFirebase(() => {
-    if (!userProfile || !firestore) return null;
-    return query(
-      collection(firestore, 'leaderboard'),
-      where('userId', '==', userProfile.id),
-      orderBy('timestamp', 'desc'),
-      limit(10)
-    );
-  }, [userProfile, firestore]);
-
-  const { data: userGameHistory, isLoading: isHistoryLoading } = useCollection(userGameHistoryQuery);
+  const isProfileLoading = false;
+  const isHistoryLoading = false;
 
   const processedChartData = useMemo(() => {
-    if (!userGameHistory) return [];
-    return userGameHistory.slice(0, 7).reverse().map(game => ({
-      date: new Date(game.timestamp.toDate()).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    return staticUserGameHistory.slice(0, 7).reverse().map(game => ({
+      date: game.timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
       wpm: game.score,
     }));
-  }, [userGameHistory]);
+  }, []);
 
   const topAccuracy = useMemo(() => {
-    if (!userGameHistory || userGameHistory.length === 0) return 0;
-    return Math.max(...userGameHistory.map(g => g.accuracy));
-  }, [userGameHistory]);
+    if (staticUserGameHistory.length === 0) return 0;
+    return Math.max(...staticUserGameHistory.map(g => g.accuracy));
+  }, []);
 
   const calculatedAverageWpm = useMemo(() => {
-    if (!userGameHistory || userGameHistory.length === 0) return 0;
-    const totalWpm = userGameHistory.reduce((sum, game) => sum + game.score, 0);
-    return Math.round(totalWpm / userGameHistory.length);
-  }, [userGameHistory]);
+    if (staticUserGameHistory.length === 0) return 0;
+    const totalWpm = staticUserGameHistory.reduce((sum, game) => sum + game.score, 0);
+    return Math.round(totalWpm / staticUserGameHistory.length);
+  }, []);
 
   return (
     <>
@@ -88,7 +89,7 @@ export default function DashboardPage() {
               <BarChart className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              {isProfileLoading ? <Skeleton className="h-8 w-1/4" /> : <div className="text-2xl font-bold">{userProfile?.gamesPlayed ?? 0}</div>}
+              {isProfileLoading ? <Skeleton className="h-8 w-1/4" /> : <div className="text-2xl font-bold">{staticUserProfile?.gamesPlayed ?? 0}</div>}
               <p className="text-xs text-muted-foreground">Total games completed</p>
             </CardContent>
           </Card>
@@ -98,7 +99,7 @@ export default function DashboardPage() {
               <Target className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              {isProfileLoading ? <Skeleton className="h-8 w-1/2" /> : <div className="text-2xl font-bold text-primary">{userProfile?.highestWPM ?? 0} WPM</div>}
+              {isProfileLoading ? <Skeleton className="h-8 w-1/2" /> : <div className="text-2xl font-bold text-primary">{staticUserProfile?.highestWPM ?? 0} WPM</div>}
               <p className="text-xs text-muted-foreground">Your personal best</p>
             </CardContent>
           </Card>
@@ -167,18 +168,18 @@ export default function DashboardPage() {
                         <TableCell className="text-right"><Skeleton className="h-5 w-24" /></TableCell>
                       </TableRow>
                     ))}
-                    {!isHistoryLoading && userGameHistory?.slice(0, 4).map((game) => (
+                    {!isHistoryLoading && staticUserGameHistory?.slice(0, 4).map((game) => (
                       <TableRow key={game.id}>
                         <TableCell>
                           <div className="font-medium text-accent">{game.score}</div>
                         </TableCell>
                         <TableCell>{game.accuracy}%</TableCell>
                         <TableCell className="text-right text-muted-foreground">
-                          {new Date(game.timestamp.toDate()).toLocaleDateString()}
+                          {game.timestamp.toLocaleDateString()}
                         </TableCell>
                       </TableRow>
                     ))}
-                    {!isHistoryLoading && userGameHistory?.length === 0 && (
+                    {!isHistoryLoading && staticUserGameHistory?.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={3} className="text-center text-muted-foreground">
                           No games played yet.

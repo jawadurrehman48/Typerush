@@ -100,16 +100,25 @@ service cloud.firestore {
      * Ensures the entry's `userId` field correctly points to the person creating it.
      */
     function isCreatingValidLeaderboardEntry() {
-      return request.resource.data.userId == request.auth.uid;
+      let data = request.resource.data;
+      return data.userId == request.auth.uid
+          && data.username == request.auth.token.name
+          && data.score > 0
+          && data.accuracy >= 0 && data.accuracy <= 100
+          && data.timestamp == request.time;
     }
 
     /**
      * Validates an update to a LeaderboardEntry document.
-     * Enforces immutability on the `userId` field to prevent re-assigning scores.
+     * Prevents changing core immutable fields like userId and timestamp.
+     * Allows updating score and accuracy.
      */
     function isUpdatingValidLeaderboardEntry() {
-      // The `userId` cannot be changed after the score has been posted.
-      return request.resource.data.userId == resource.data.userId;
+      let data = request.resource.data;
+      return data.userId == resource.data.userId
+          && data.username == resource.data.username
+          // Allow score to be updated, but not other critical fields
+          && data.timestamp == resource.data.timestamp;
     }
 
     /**
@@ -156,9 +165,16 @@ service cloud.firestore {
      * @path        /leaderboard/{leaderboardEntryId}
      */
     match /leaderboard/{leaderboardEntryId} {
+      // Anyone can get a specific entry if they have the ID.
       allow get: if true;
-      allow list: if true;
+      // Allow two types of list queries:
+      // 1. Unauthenticated users can list top scores (e.g., for global leaderboard page).
+      // 2. Authenticated users can list their OWN scores (e.g., for dashboard).
+      allow list: if (request.auth == null && request.query.limit <= 20) || 
+                   (isSignedIn() && request.query.where.userId == request.auth.uid);
+      // Logged-in users can create entries for themselves.
       allow create: if isSignedIn() && isCreatingValidLeaderboardEntry();
+      // Only the owner of an entry can update or delete it.
       allow update: if isExistingOwner(resource.data.userId) && isUpdatingValidLeaderboardEntry();
       allow delete: if isExistingOwner(resource.data.userId);
     }

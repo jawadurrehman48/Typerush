@@ -23,6 +23,7 @@ const TypingTest = () => {
   const [lastParagraphId, setLastParagraphId] = useState<string | null>(null);
 
   const newGame = async () => {
+    if (!firestore) return;
     const { paragraph, id } = await getRandomParagraph(firestore, lastParagraphId);
     setText(paragraph);
     setLastParagraphId(id);
@@ -36,8 +37,10 @@ const TypingTest = () => {
   };
 
   useEffect(() => {
-    newGame();
-  }, []);
+    if (firestore) {
+      newGame();
+    }
+  }, [firestore]);
 
   useEffect(() => {
     if (status === 'running' && inputRef.current) {

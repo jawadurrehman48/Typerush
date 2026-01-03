@@ -8,6 +8,7 @@ import {
   serverTimestamp,
   getDoc,
   setDoc,
+  runTransaction,
 } from 'firebase/firestore';
 import { useFirestore, useUser, useUserProfile } from '@/firebase';
 import { Button } from '@/components/ui/button';
@@ -15,7 +16,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { getRandomParagraph } from '@/lib/paragraphs';
-import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { toast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Clipboard, ClipboardCheck } from 'lucide-react';
@@ -37,15 +37,13 @@ export default function JoinOrCreateRace({ onJoinRace }: JoinOrCreateRaceProps) 
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
 
-  // Function to generate a unique 3-digit race ID
   const generateUniqueRaceId = async (): Promise<string> => {
     let raceId: string;
     let isUnique = false;
     let attempts = 0;
-    const maxAttempts = 100; // Prevent infinite loop
+    const maxAttempts = 100;
 
     while (!isUnique && attempts < maxAttempts) {
-      // Generate a random 3-digit number (100-999)
       raceId = Math.floor(100 + Math.random() * 900).toString();
       const raceDocRef = doc(firestore, 'races', raceId);
       const docSnap = await getDoc(raceDocRef);
@@ -60,7 +58,6 @@ export default function JoinOrCreateRace({ onJoinRace }: JoinOrCreateRaceProps) 
         throw new Error("Could not find a unique race ID. Please try again.");
     }
     
-    // This line should not be reached if the loop works correctly
     return Math.floor(100 + Math.random() * 900).toString();
   };
 
@@ -90,10 +87,21 @@ export default function JoinOrCreateRace({ onJoinRace }: JoinOrCreateRaceProps) 
         createdAt: serverTimestamp(),
         host: userProfile.username,
         name: raceName.trim(),
+        playerCount: 1, // Start with 1 player (the host)
       };
 
       const raceDocRef = doc(firestore, 'races', uniqueRaceId);
       await setDoc(raceDocRef, newRace);
+
+      const playerRef = doc(firestore, 'races', uniqueRaceId, 'players', user.uid);
+      const playerData = {
+        id: user.uid,
+        username: userProfile.username,
+        progress: 0,
+        wpm: 0,
+        finishedTime: null,
+      };
+      await setDoc(playerRef, playerData, { merge: true });
       
       setCreatedRaceId(uniqueRaceId);
       
@@ -125,46 +133,45 @@ export default function JoinOrCreateRace({ onJoinRace }: JoinOrCreateRaceProps) 
 
     try {
         const raceDocRef = doc(firestore, 'races', joinRaceId.trim());
-        const raceSnap = await getDoc(raceDocRef);
 
-        if (!raceSnap.exists()) {
-            toast({
-                variant: "destructive",
-                title: "Race not found",
-                description: "The provided Race ID is invalid.",
-            });
-            setIsJoining(false);
-            return;
-        }
+        await runTransaction(firestore, async (transaction) => {
+            const raceSnap = await transaction.get(raceDocRef);
 
-        const raceData = raceSnap.data();
-        if (raceData.status !== 'waiting') {
-             toast({
-                variant: "destructive",
-                title: "Race not available",
-                description: "This race has already started or is finished.",
-            });
-            setIsJoining(false);
-            return;
-        }
+            if (!raceSnap.exists()) {
+                throw new Error("Race not found. The provided Race ID is invalid.");
+            }
 
-        const playerRef = doc(firestore, 'races', raceSnap.id, 'players', user.uid);
-        const playerData = {
-            id: user.uid,
-            username: userProfile.username,
-            progress: 0,
-            wpm: 0,
-            finishedTime: null,
-        };
+            const raceData = raceSnap.data();
+            if (raceData.status !== 'waiting') {
+                throw new Error("This race has already started or is finished.");
+            }
+
+            if ((raceData.playerCount || 0) >= 10) {
+                 throw new Error("This race is full.");
+            }
+
+            const playerRef = doc(firestore, 'races', raceSnap.id, 'players', user.uid);
+            const playerData = {
+                id: user.uid,
+                username: userProfile.username,
+                progress: 0,
+                wpm: 0,
+                finishedTime: null,
+            };
+            
+            transaction.set(playerRef, playerData, { merge: true });
+            transaction.update(raceDocRef, { playerCount: (raceData.playerCount || 0) + 1 });
+        });
         
-        setDocumentNonBlocking(playerRef, playerData, { merge: true });
-        onJoinRace(raceSnap.id);
-    } catch (error) {
+        onJoinRace(joinRaceId.trim());
+
+    } catch (error: any) {
         toast({
             variant: "destructive",
             title: "Failed to join race",
-            description: "Please check the ID and try again.",
+            description: error.message || "Please check the ID and try again.",
         });
+    } finally {
         setIsJoining(false);
     }
   };

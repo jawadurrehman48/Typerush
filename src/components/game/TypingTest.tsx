@@ -88,7 +88,7 @@ const TypingTest = () => {
       <CardContent className="p-6">
         <div className="flex justify-between items-center mb-4">
           <div className="flex gap-4 sm:gap-8">
-            <div className="flex items-center gap-2 text-accent">
+            <div className="flex items-center gap-2 text-primary">
               <Zap className="h-5 w-5" />
               <span className="text-xl sm:text-2xl font-bold font-mono">{wpm} WPM</span>
             </div>
@@ -123,7 +123,7 @@ const TypingTest = () => {
               key={index}
               className={cn({
                 'text-muted-foreground': state === 'untyped',
-                'text-foreground': state === 'correct',
+                'text-green-500': state === 'correct',
                 'text-destructive': state === 'incorrect',
                 'relative': userInput.length === index,
               })}
@@ -148,7 +148,7 @@ const TypingTest = () => {
           <div className="mt-6 text-center">
             <h2 className="text-3xl font-bold text-primary mb-2">Race Complete!</h2>
             <div className="flex justify-center gap-8 mb-6">
-                <div className="text-accent">
+                <div className="text-primary">
                     <p className="text-sm text-muted-foreground">WPM</p>
                     <p className="text-4xl font-bold font-mono">{wpm}</p>
                 </div>
@@ -158,7 +158,7 @@ const TypingTest = () => {
                 </div>
             </div>
             <div className="flex justify-center gap-4">
-              <Button onClick={newGame} size="lg" className="bg-accent text-accent-foreground hover:bg-accent/90">
+              <Button onClick={newGame} size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90">
                 <RefreshCw className="mr-2 h-4 w-4" /> Play Again
               </Button>
               <Button asChild variant="outline" size="lg">

@@ -19,7 +19,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
-import { LogOut, Trophy, Check, Copy } from 'lucide-react';
+import { LogOut, Trophy, Check, Copy, Crown } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import Image from 'next/image';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
@@ -43,6 +43,7 @@ type PlayerData = {
   progress: number;
   wpm: number;
   finishedTime: number | null;
+  accuracy: number;
   photoURL?: string;
 };
 
@@ -112,12 +113,12 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
   );
 
   const accuracy = useMemo(() => {
-    if (!text || !userInput) return 0;
+    if (!text || !userInput) return localPlayer?.accuracy ?? 0;
     const correct = userInput
       .split('')
       .filter((char, i) => char === text[i]).length;
-    return Math.round((correct / userInput.length) * 100);
-  }, [text, userInput]);
+    return Math.round((correct / userInput.length) * 100) || 0;
+  }, [text, userInput, localPlayer]);
 
   const { wpm, progress } = useMemo(() => {
     if (status !== 'running' || !raceData?.startTime || !text) return { wpm: 0, progress: 0 };
@@ -164,10 +165,11 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
       const updatePayload = {
         progress,
         wpm,
+        accuracy
       };
       updateDocumentNonBlocking(localPlayerRef, updatePayload);
     }
-  }, [status, localPlayerRef, isFinished, progress, wpm]);
+  }, [status, localPlayerRef, isFinished, progress, wpm, accuracy]);
 
 
   /* ------------------ HANDLERS ------------------ */
@@ -185,27 +187,23 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
       const duration = (Date.now() - start) / 1000; // in seconds
       const correctChars = value.split('').filter((char, i) => char === text[i]).length;
       const finalWpm = Math.round((correctChars / 5) / (duration / 60));
+      const finalAccuracy = Math.round((correctChars / value.length) * 100);
 
       const finalPlayerUpdate = {
         finishedTime: duration,
         progress: 100,
         wpm: finalWpm,
+        accuracy: finalAccuracy,
       };
 
-      // Mark the local player as finished
-      // We await this one to make sure the player's final stats are recorded before winner check
       await updateDoc(localPlayerRef, finalPlayerUpdate);
 
-      // Atomically try to become the winner
-      // This update will only succeed if winnerId is currently null
       if (raceData && !raceData.winnerId && user) {
         updateDocumentNonBlocking(raceRef, {
             winnerId: user.uid,
+            status: 'finished',
         });
       }
-      
-      // The race is globally marked as finished by the winner or a cloud function later
-      // For now, the client just knows this player is done
     }
   };
   
@@ -225,7 +223,7 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  /* ------------------ UI ------------------ */
+  /* ------------------ RENDER LOGIC ------------------ */
 
   if (isRaceLoading || arePlayersLoading) {
     return (
@@ -235,6 +233,57 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
     );
   }
 
+  // Final Results View
+  if (status === 'finished') {
+    return (
+        <Card className="w-full border-2 shadow-lg">
+            <CardContent className="p-6">
+                <div className="text-center mb-6">
+                    <h2 className="text-3xl font-bold text-primary">Race Finished!</h2>
+                    {winner ? (
+                        <div className="flex items-center justify-center gap-2 mt-2 text-yellow-500">
+                            <Trophy className="h-7 w-7" />
+                            <p className="text-xl font-bold">{winner.username} won!</p>
+                        </div>
+                    ) : (
+                        <p className="text-lg mt-2">The race is over.</p>
+                    )}
+                </div>
+
+                <div className="space-y-3">
+                    {sortedPlayers.map((player, index) => (
+                        <Card key={player.id} className={cn("flex items-center justify-between p-3", player.id === winner?.id && 'border-yellow-500 border-2')}>
+                            <div className="flex items-center gap-4">
+                                <span className="text-xl font-bold w-6 text-center">{index + 1}</span>
+                                <Image src={player.photoURL || `https://picsum.photos/seed/${player.username}/40/40`} alt={player.username} width={40} height={40} className="rounded-full" />
+                                <div>
+                                    <p className="font-semibold">{player.username} {player.id === user?.uid && '(You)'}</p>
+                                    <p className="text-sm text-muted-foreground">{player.finishedTime ? `${player.finishedTime.toFixed(2)}s` : 'DNF'}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-6 font-mono text-right">
+                                <div>
+                                    <p className="text-sm text-muted-foreground">WPM</p>
+                                    <p className="text-lg font-bold text-primary">{player.wpm}</p>
+                                </div>
+                                <div>
+                                    <p className="text-sm text-muted-foreground">Acc</p>
+                                    <p className="text-lg font-bold">{player.accuracy}%</p>
+                                </div>
+                            </div>
+                        </Card>
+                    ))}
+                </div>
+
+                <div className="text-center mt-8">
+                    <Button size="lg" onClick={onLeave}>Find New Race</Button>
+                </div>
+            </CardContent>
+        </Card>
+    );
+  }
+
+  // Active Race or Lobby View
   return (
     <Card className="w-full border-2 shadow-lg">
       <CardContent className="p-6">
@@ -279,6 +328,7 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
                     className="rounded-full"
                   />
                   <span className="font-medium">
+                    {player.id === raceData?.host && <Crown className="h-4 w-4 inline-block mr-1 text-yellow-500" />}
                     {player.username} {player.id === user?.uid && '(You)'}
                   </span>
                   {player.finishedTime && (
@@ -295,7 +345,7 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
         </div>
 
         <div
-          className="relative mt-6 rounded-lg bg-muted/30 p-4 font-mono text-lg leading-relaxed tracking-wide"
+          className="relative mt-6 rounded-lg bg-muted/30 p-4 font-mono text-lg leading-relaxed tracking-wide break-words"
           onClick={() => inputRef.current?.focus()}
         >
           <input
@@ -349,33 +399,22 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
           )}
         </div>
 
-        {isFinished && (
+        {isFinished && status === 'running' && (
           <div className="mt-6 rounded-lg bg-background p-4 text-center">
             <h2 className="text-3xl font-bold text-primary">You Finished!</h2>
-             {winner?.id === user?.uid && status !== 'waiting' && (
-                <div className="mb-4 mt-2 flex items-center justify-center gap-2 text-yellow-500">
-                    <Trophy className="h-8 w-8" />
-                    <p className="text-2xl font-bold">You Won!</p>
-                </div>
-            )}
+            <p className="text-lg text-muted-foreground mt-2">Waiting for other players to finish...</p>
             <div className="my-6 flex justify-center gap-8">
               <div className="text-primary">
-                <p className="text-sm text-muted-foreground">WPM</p>
+                <p className="text-sm text-muted-foreground">Your WPM</p>
                 <p className="font-mono text-4xl font-bold">
                   {localPlayer?.wpm}
                 </p>
               </div>
               <div className="text-primary">
-                <p className="text-sm text-muted-foreground">Accuracy</p>
+                <p className="text-sm text-muted-foreground">Your Accuracy</p>
                 <p className="font-mono text-4xl font-bold">{accuracy}%</p>
               </div>
             </div>
-            {status === 'finished' && winner && winner.id !== user?.uid && (
-                 <p className="mb-4 text-lg text-muted-foreground">{winner.username} won the race!</p>
-            )}
-            <Button className="mt-4" onClick={onLeave}>
-              Find New Race
-            </Button>
           </div>
         )}
       </CardContent>

@@ -123,12 +123,12 @@ service cloud.firestore {
 
     /**
      * Validates a new Race document.
-     * Ensures the `host` field is set to the creator's username.
+     * Ensures the `host` field is set to the creator's username and playerCount is 1.
      */
     function isCreatingValidRace() {
       return request.resource.data.host == request.auth.token.name
           && request.resource.data.status == 'waiting'
-          && request.resource.data.playerCount == 0;
+          && request.resource.data.playerCount == 1;
     }
 
     /**
@@ -153,15 +153,20 @@ service cloud.firestore {
                               && existingData.status == 'waiting'
                               && incomingData.diff(existingData).affectedKeys().hasAll(['status', 'startTime']);
 
-      // Allow the first finisher to set the winnerId and finish the race
-      let isFinishingRace = isSignedIn()
-                           && incomingData.status == 'finished'
-                           && existingData.status == 'running'
-                           && existingData.winnerId == null // Critical: winner not yet set
-                           && incomingData.winnerId == request.auth.uid
-                           && incomingData.diff(existingData).affectedKeys().hasAll(['status', 'winnerId']);
+      // Allow the first finisher to set the winnerId.
+      let isFirstFinisher = isSignedIn()
+                            && incomingData.diff(existingData).affectedKeys().hasAll(['winnerId', 'status'])
+                            && existingData.winnerId == null // Critical: winner not yet set
+                            && incomingData.winnerId == request.auth.uid
+                            && incomingData.status == 'finished'
+                            && existingData.status == 'running';
+                            
+      // Allow host to manually finish the race if needed (e.g. timeout)
+      let isHostFinishingRace = isRaceHost(raceId)
+                                && incomingData.status == 'finished'
+                                && existingData.status != 'finished';
 
-      return isJoining || isHostStartingRace || isFinishingRace;
+      return isJoining || isHostStartingRace || isFirstFinisher || isHostFinishingRace;
     }
 
     //----------------------------------------------------------------//
@@ -234,5 +239,3 @@ service cloud.firestore {
     }
   }
 }
-
-    

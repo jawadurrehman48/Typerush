@@ -121,34 +121,52 @@ export default function JoinOrCreateRace({ onJoinRace }: JoinOrCreateRaceProps) 
   };
 
   const handleJoinRace = async () => {
-    if (!joinRaceId.trim()) {
-       toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Race ID is required.",
+    if (!joinRaceId.trim() || !user || !userProfile) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Race ID is required and you must be logged in.',
       });
       return;
     }
     setIsJoining(true);
-
+  
     try {
-        const raceDocRef = doc(firestore, 'races', joinRaceId.trim());
-        const raceSnap = await getDoc(raceDocRef);
-
+      const raceDocRef = doc(firestore, 'races', joinRaceId.trim());
+  
+      await runTransaction(firestore, async (transaction) => {
+        const raceSnap = await transaction.get(raceDocRef);
+  
         if (!raceSnap.exists()) {
-            throw new Error("Race not found. The provided Race ID is invalid.");
+          throw new Error('Race not found. Please check the ID and try again.');
         }
-        
-        onJoinRace(joinRaceId.trim());
-
+  
+        // Add the player to the subcollection
+        const playerRef = doc(firestore, 'races', raceDocRef.id, 'players', user.uid);
+        const playerData = {
+          id: user.uid,
+          username: userProfile.username,
+          progress: 0,
+          wpm: 0,
+          finishedTime: null,
+        };
+        transaction.set(playerRef, playerData, { merge: true });
+  
+        // Increment the player count
+        const currentCount = raceSnap.data().playerCount || 0;
+        transaction.update(raceDocRef, { playerCount: currentCount + 1 });
+      });
+  
+      onJoinRace(joinRaceId.trim());
+  
     } catch (error: any) {
-        toast({
-            variant: "destructive",
-            title: "Failed to join race",
-            description: error.message || "Please check the ID and try again.",
-        });
+      toast({
+        variant: 'destructive',
+        title: 'Failed to join race',
+        description: error.message || 'Please check the ID and try again.',
+      });
     } finally {
-        setIsJoining(false);
+      setIsJoining(false);
     }
   };
 

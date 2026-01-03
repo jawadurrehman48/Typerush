@@ -1,6 +1,7 @@
+
 'use client';
 
-import { BarChart, Clock, Target, TrendingUp, User as UserIcon } from 'lucide-react';
+import { BarChart, Clock, Target, TrendingUp } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -24,17 +25,10 @@ import {
 import { Bar, BarChart as RechartsBarChart, XAxis, YAxis } from 'recharts';
 import Header from '@/components/layout/Header';
 import { useUser, useUserProfile, useFirestore, useAuth } from '@/firebase';
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo } from 'react';
 import { collection, query, where, orderBy, limit } from 'firebase/firestore';
 import { useCollection } from '@/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { toast } from '@/hooks/use-toast';
-import { updateProfile } from 'firebase/auth';
-import { doc, updateDoc } from 'firebase/firestore';
-import Image from 'next/image';
 
 const chartData = [
   { date: 'May 14', wpm: 78 },
@@ -61,80 +55,40 @@ const userProfileData = {
 const averageWpm = 91;
 
 export default function DashboardPage() {
-  const { user } = useUser();
   const { data: userProfile, isLoading: isProfileLoading } = useUserProfile();
-  const firestore = useFirestore();
-  const auth = useAuth();
 
-  const [newUsername, setNewUsername] = useState('');
-  const [newPhoto, setNewPhoto] = useState<File | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-  const [isUpdating, setIsUpdating] = useState(false);
-
-  useEffect(() => {
-    if (userProfile) {
-      setNewUsername(userProfile.username);
-      if (userProfile.photoURL) {
-        setPhotoPreview(userProfile.photoURL);
-      }
-    }
+  const userGameHistoryQuery = useMemo(() => {
+    if (!userProfile) return null;
+    // This is just a placeholder query. For a real implementation, 
+    // you would query based on the user's ID.
+    return query(
+      collection(useFirestore(), 'leaderboard'),
+      where('username', '==', userProfile.username),
+      orderBy('timestamp', 'desc'),
+      limit(10)
+    );
   }, [userProfile]);
 
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setNewPhoto(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPhotoPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+  const { data: userGameHistory, isLoading: isHistoryLoading } = useCollection(userGameHistoryQuery);
 
-  const handleProfileUpdate = async () => {
-    if (!user || !firestore) return;
+  const processedChartData = useMemo(() => {
+    if (!userGameHistory) return [];
+    return userGameHistory.slice(0, 7).reverse().map(game => ({
+      date: new Date(game.timestamp.toDate()).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      wpm: game.score,
+    }));
+  }, [userGameHistory]);
 
-    setIsUpdating(true);
-    try {
-      const updates: {username: string, photoURL?: string} = { username: newUsername };
+  const topAccuracy = useMemo(() => {
+    if (!userGameHistory || userGameHistory.length === 0) return 0;
+    return Math.max(...userGameHistory.map(g => g.accuracy));
+  }, [userGameHistory]);
 
-      if (newPhoto) {
-        const reader = new FileReader();
-        const promise = new Promise<string>((resolve, reject) => {
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(newPhoto);
-        });
-        const photoURL = await promise;
-        updates.photoURL = photoURL;
-      }
-      
-      // Update Firebase Auth display name
-      if (user.displayName !== newUsername) {
-        await updateProfile(user, {
-            displayName: newUsername,
-        });
-      }
-
-      // Update Firestore profile
-      const userDocRef = doc(firestore, 'users', user.uid);
-      await updateDoc(userDocRef, updates);
-
-      toast({
-        title: 'Profile Updated',
-        description: 'Your profile has been successfully updated.',
-      });
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Update Failed',
-        description: error.message || 'An error occurred.',
-      });
-    } finally {
-      setIsUpdating(false);
-    }
-  };
+  const calculatedAverageWpm = useMemo(() => {
+    if (!userGameHistory || userGameHistory.length === 0) return 0;
+    const totalWpm = userGameHistory.reduce((sum, game) => sum + game.score, 0);
+    return Math.round(totalWpm / userGameHistory.length);
+  }, [userGameHistory]);
 
   return (
     <>
@@ -150,7 +104,7 @@ export default function DashboardPage() {
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              {isProfileLoading ? <Skeleton className="h-8 w-1/4" /> : <div className="text-2xl font-bold text-accent">{averageWpm}</div>}
+              {isHistoryLoading ? <Skeleton className="h-8 w-1/4" /> : <div className="text-2xl font-bold text-accent">{calculatedAverageWpm}</div>}
               <p className="text-xs text-muted-foreground">Across all games</p>
             </CardContent>
           </Card>
@@ -180,21 +134,21 @@ export default function DashboardPage() {
               <Clock className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              {isProfileLoading ? <Skeleton className="h-8 w-1/4" /> : <div className="text-2xl font-bold">{Math.max(0, ...gameHistory?.map(g => parseInt(g.accuracy)) ?? [])}%</div>}
+              {isHistoryLoading ? <Skeleton className="h-8 w-1/4" /> : <div className="text-2xl font-bold">{topAccuracy}%</div>}
               <p className="text-xs text-muted-foreground">Highest accuracy achieved</p>
             </CardContent>
           </Card>
         </div>
 
-        <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-3">
-          <div className="lg:col-span-2 grid gap-8">
+        <div className="mt-8 grid grid-cols-1 gap-8">
+          <div className="grid gap-8">
             <Card className="md:col-span-3">
               <CardHeader>
                 <CardTitle>WPM Progress</CardTitle>
                 <CardDescription>Your typing speed over the last 7 games.</CardDescription>
               </CardHeader>
               <CardContent>
-                {isProfileLoading ? <Skeleton className="h-[250px] w-full" /> : (
+                {isHistoryLoading ? <Skeleton className="h-[250px] w-full" /> : (
                   <ChartContainer
                     config={{
                       wpm: {
@@ -204,7 +158,7 @@ export default function DashboardPage() {
                     }}
                     className="h-[250px] w-full"
                   >
-                    <RechartsBarChart data={chartData} margin={{ top: 20, right: 20, left: -10, bottom: 0 }}>
+                    <RechartsBarChart data={processedChartData} margin={{ top: 20, right: 20, left: -10, bottom: 0 }}>
                       <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
                       <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} domain={[0, 'dataMax + 10']} />
                       <ChartTooltip
@@ -232,23 +186,25 @@ export default function DashboardPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {isProfileLoading && Array.from({ length: 4 }).map((_, i) => (
+                    {(isProfileLoading || isHistoryLoading) && Array.from({ length: 4 }).map((_, i) => (
                       <TableRow key={i}>
                         <TableCell><Skeleton className="h-5 w-10" /></TableCell>
                         <TableCell><Skeleton className="h-5 w-10" /></TableCell>
                         <TableCell className="text-right"><Skeleton className="h-5 w-24" /></TableCell>
                       </TableRow>
                     ))}
-                    {!isProfileLoading && gameHistory?.slice(0, 4).map((game) => (
+                    {!isHistoryLoading && userGameHistory?.slice(0, 4).map((game) => (
                       <TableRow key={game.id}>
                         <TableCell>
-                          <div className="font-medium text-accent">{game.wpm}</div>
+                          <div className="font-medium text-accent">{game.score}</div>
                         </TableCell>
-                        <TableCell>{game.accuracy}</TableCell>
-                        <TableCell className="text-right text-muted-foreground">{game.date}</TableCell>
+                        <TableCell>{game.accuracy}%</TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          {new Date(game.timestamp.toDate()).toLocaleDateString()}
+                        </TableCell>
                       </TableRow>
                     ))}
-                    {!isProfileLoading && gameHistory?.length === 0 && (
+                    {!isHistoryLoading && userGameHistory?.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={3} className="text-center text-muted-foreground">
                           No games played yet.
@@ -260,49 +216,6 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
           </div>
-
-          <Card className="lg:col-span-1">
-            <CardHeader>
-              <CardTitle>Profile Settings</CardTitle>
-              <CardDescription>Update your public profile information.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="username">Username</Label>
-                <Input
-                  id="username"
-                  value={newUsername}
-                  onChange={(e) => setNewUsername(e.target.value)}
-                  disabled={isUpdating || isProfileLoading}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="photo">Profile Picture</Label>
-                <div className="flex items-center gap-4">
-                  {isProfileLoading ? <Skeleton className="h-16 w-16 rounded-full" /> :
-                    <Image
-                      src={photoPreview || userProfile?.photoURL || `https://picsum.photos/seed/${userProfile?.username || 'user'}/64/64`}
-                      alt="Avatar preview"
-                      width={64}
-                      height={64}
-                      className="rounded-full"
-                    />
-                  }
-                  <Input
-                    id="photo"
-                    type="file"
-                    accept="image/*"
-                    onChange={handlePhotoChange}
-                    className="flex-1"
-                    disabled={isUpdating || isProfileLoading}
-                  />
-                </div>
-              </div>
-              <Button onClick={handleProfileUpdate} disabled={isUpdating || isProfileLoading} className="w-full">
-                {isUpdating ? 'Updating...' : 'Update Profile'}
-              </Button>
-            </CardContent>
-          </Card>
         </div>
       </div>
     </>

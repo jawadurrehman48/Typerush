@@ -71,9 +71,9 @@ service cloud.firestore {
      * It looks up the `host` field on the existing race document.
      */
     function isRaceHost(raceId) {
-      return isSignedIn() && get(/databases/$(database)/documents/races/$(raceId)).data.host == request.auth.token.name;
+      let race = get(/databases/$(database)/documents/races/$(raceId));
+      return isSignedIn() && race.data.host == request.auth.token.name;
     }
-
 
     /**
      * Validates a new UserProfile document.
@@ -126,8 +126,7 @@ service cloud.firestore {
      * Ensures the `host` field is set to the creator's username.
      */
     function isCreatingValidRace() {
-      let username = get(/databases/$(database)/documents/users/$(request.auth.uid)).data.username;
-      return request.resource.data.host == username
+      return request.resource.data.host == request.auth.token.name
           && request.resource.data.status == 'waiting';
     }
 
@@ -135,23 +134,32 @@ service cloud.firestore {
      * Validates an update to a Race document.
      * Allows the host to change status or winner.
      * Allows anyone to increment player count (for joining).
+     * Allows the first finisher to claim the winnerId.
      */
     function isUpdatingValidRace(raceId) {
       let incomingData = request.resource.data;
       let existingData = resource.data;
 
       // Allow a player to join by incrementing the player count
-      let isJoining = isSignedIn() && incomingData.diff(existingData).affectedKeys().hasOnly(['playerCount'])
+      let isJoining = isSignedIn()
+                      && incomingData.diff(existingData).affectedKeys().hasOnly(['playerCount'])
                       && incomingData.playerCount == existingData.playerCount + 1;
 
-      // Allow the host to update the race status, start time, and winner.
-      let isHostUpdate = isRaceHost(raceId) &&
-          (
-            incomingData.diff(existingData).affectedKeys().hasOnly(['status', 'startTime']) ||
-            incomingData.diff(existingData).affectedKeys().hasOnly(['status', 'winnerId'])
-          );
+      // Allow the host to start the race
+      let isHostStartingRace = isRaceHost(raceId)
+                              && incomingData.status == 'running'
+                              && existingData.status == 'waiting'
+                              && incomingData.diff(existingData).affectedKeys().hasAll(['status', 'startTime']);
 
-      return isHostUpdate || isJoining;
+      // Allow the first finisher to set the winnerId and finish the race
+      let isFinishingRace = isSignedIn()
+                           && incomingData.status == 'finished'
+                           && existingData.status == 'running'
+                           && existingData.winnerId == null // Critical: winner not yet set
+                           && incomingData.winnerId == request.auth.uid
+                           && incomingData.diff(existingData).affectedKeys().hasAll(['status', 'winnerId']);
+
+      return isJoining || isHostStartingRace || isFinishingRace;
     }
 
     //----------------------------------------------------------------//
@@ -207,8 +215,8 @@ service cloud.firestore {
         allow get: if isSignedIn();
         allow list: if isSignedIn();
         allow create: if isOwner(userId);
-        allow update: if isExistingOwner(userId);
-        allow delete: if isExistingOwner(userId);
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId);
       }
     }
 
@@ -224,3 +232,5 @@ service cloud.firestore {
     }
   }
 }
+
+    

@@ -39,7 +39,7 @@ type RaceLobbyProps = {
 export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
-  const racesRef = collection(firestore, 'races');
+  const racesRef = useMemoFirebase(() => collection(firestore, 'races'), [firestore]);
 
   const memoizedQuery = useMemoFirebase(() => 
     query(racesRef, where('status', '==', 'waiting')),

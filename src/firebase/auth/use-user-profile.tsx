@@ -1,8 +1,7 @@
 'use client';
 
 import { doc } from 'firebase/firestore';
-import { useDoc, useFirestore, useUser, useMemoFirebase } from '@/firebase';
-import { useUserProfile as useUserProfileHook } from '@/firebase/auth/use-user-profile';
+import { useDoc, useFirestore, useUser, useMemoFirebase } from '@/firebase/provider';
 
 type UserProfile = {
   username: string;
@@ -15,7 +14,7 @@ export function useUserProfile() {
   const firestore = useFirestore();
 
   const userProfileRef = useMemoFirebase(
-    () => (user ? doc(firestore, 'users', user.uid) : null),
+    () => (firestore && user ? doc(firestore, 'users', user.uid) : null),
     [firestore, user]
   );
 

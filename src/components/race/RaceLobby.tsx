@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -7,6 +8,7 @@ import {
   serverTimestamp,
   addDoc,
   collection,
+  setDoc,
 } from 'firebase/firestore';
 import { useFirestore, useUser, useUserProfile } from '@/firebase';
 import { Button } from '@/components/ui/button';

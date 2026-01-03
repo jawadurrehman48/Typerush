@@ -1,25 +1,27 @@
+
 /**
  * Core Philosophy: This ruleset enforces a strict user-ownership model for all user-generated content.
  * All private user data, including profiles and game scores, is accessible only by the authenticated
- * user who owns it. Public data, such as the leaderboard, is globally readable but write-protected
+ * user who owns it. Public data, such as the leaderboard and game paragraphs, is globally readable but write-protected
  * from client applications, with mutations expected to be handled by a trusted backend service (e.g., Cloud Functions).
  *
  * Data Structure:
  * - /users/{userId}: Stores private UserProfile documents.
  * - /users/{userId}/game_scores/{gameScoreId}: A subcollection storing private game scores for each user.
  * - /leaderboard/{leaderboardEntryId}: A top-level collection for public leaderboard data.
+ * - /paragraphs/{paragraphId}: A top-level collection for public game paragraphs.
  *
  * Key Security Decisions:
  * - User Isolation: Users can only access their own data tree under `/users/{userId}`. Listing all users is explicitly disallowed to protect user privacy.
- * - Public Read-Only Data: The `/leaderboard` collection is publicly readable by anyone but cannot be modified by any client. This is a secure pattern for displaying public information managed by the backend.
+ * - Public Read-Only Data: The `/leaderboard` and `/paragraphs` collections are publicly readable by anyone but cannot be modified by any client. This is a secure pattern for displaying public information.
  * - Backend-Managed Writes: All writes to the `/leaderboard` collection are denied. This assumes a Cloud Function or other trusted server environment is responsible for calculating and updating ranks.
  * - Path-Based Authorization: Authorization is primarily based on the `{userId}` wildcard in the path, which is fast, secure, and avoids costly `get()` calls in rules.
  *
  * Denormalization for Authorization: The hierarchical structure `/users/{userId}/...` is a form of authorization denormalization.
  * The ownership context (`userId`) is embedded directly in the path, allowing for simple and performant rules like `request.auth.uid == userId`.
  *
- * Structural Segregation: Private data (`game_scores`) is structurally segregated from public data (`leaderboard`) by placing them in different collections.
- * This makes list operations safe and efficient. Listing a user's own scores is secure, and listing the public leaderboard is also secure.
+ * Structural Segregation: Private data (`game_scores`) is structurally segregated from public data (`leaderboard`, `paragraphs`) by placing them in different collections.
+ * This makes list operations safe and efficient. Listing a user's own scores is secure, and listing the public leaderboard and paragraphs is also secure.
  */
 rules_version = '2';
 service cloud.firestore {
@@ -133,6 +135,21 @@ service cloud.firestore {
      * @principle Secures a collection for public consumption while centralizing writes to a trusted server process.
      */
     match /leaderboard/{leaderboardEntryId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+    
+    /**
+     * @description Manages public paragraphs for the typing game.
+     * @path /paragraphs/{paragraphId}
+     * @allow (get, list) Anyone, including unauthenticated users, can read the paragraphs.
+     * @deny (create, update, delete) No client can write to the paragraphs collection.
+     * @principle Secures a collection for public consumption while centralizing writes to a trusted server process.
+     */
+    match /paragraphs/{paragraphId} {
       allow get: if true;
       allow list: if true;
       allow create: if false;

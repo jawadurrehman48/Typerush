@@ -1,12 +1,14 @@
+
 "use client";
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { getRandomParagraph } from '@/lib/words';
+import { getRandomParagraph } from '@/lib/paragraphs';
 import { cn } from '@/lib/utils';
 import { RefreshCw, Zap, Target } from 'lucide-react';
 import Link from 'next/link';
+import { useFirestore } from '@/firebase';
 
 type GameStatus = 'waiting' | 'running' | 'finished';
 
@@ -17,9 +19,13 @@ const TypingTest = () => {
   const [startTime, setStartTime] = useState<number | null>(null);
   const [endTime, setEndTime] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const firestore = useFirestore();
+  const [lastParagraphId, setLastParagraphId] = useState<string | null>(null);
 
-  const newGame = () => {
-    setText(getRandomParagraph());
+  const newGame = async () => {
+    const { paragraph, id } = await getRandomParagraph(firestore, lastParagraphId);
+    setText(paragraph);
+    setLastParagraphId(id);
     setUserInput('');
     setStatus('waiting');
     setStartTime(null);
@@ -123,7 +129,7 @@ const TypingTest = () => {
               key={index}
               className={cn({
                 'text-muted-foreground': state === 'untyped',
-                'text-black dark:text-white': state === 'correct',
+                'text-primary': state === 'correct',
                 'text-destructive': state === 'incorrect',
                 'relative': userInput.length === index,
               })}
@@ -140,7 +146,7 @@ const TypingTest = () => {
           ))}
           {status === 'waiting' && (
             <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm rounded-md">
-              <p className="text-lg text-primary animate-pulse">Start typing to begin...</p>
+              {text ? <p className="text-lg text-primary animate-pulse">Start typing to begin...</p> : <p className="text-lg text-primary">Loading...</p>}
             </div>
           )}
         </div>

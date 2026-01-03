@@ -1,3 +1,4 @@
+
 export const paragraphs = [
   "The quick brown fox jumps over the lazy dog. This sentence contains all the letters of the alphabet. It is often used for practicing touch typing.",
   "Technology has revolutionized the way we live and work. From smartphones to artificial intelligence, innovation continues to shape our future at an unprecedented pace.",
@@ -9,6 +10,7 @@ export const paragraphs = [
   "Music is a universal language that transcends cultural boundaries. It has the power to evoke emotions, tell stories, and bring people together from all walks of life."
 ];
 
+// This function is no longer the primary source but can be a fallback or used for seeding.
 export const getRandomParagraph = () => {
   return paragraphs[Math.floor(Math.random() * paragraphs.length)];
 };

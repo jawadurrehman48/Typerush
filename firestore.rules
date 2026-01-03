@@ -144,11 +144,12 @@ service cloud.firestore {
       let isJoining = incomingData.diff(existingData).affectedKeys().hasOnly(['playerCount'])
                       && incomingData.playerCount == existingData.playerCount + 1;
 
-      // Allow the host to update the race
-      let isHostUpdate = isRaceHost(raceId)
-          && incomingData.id == existingData.id
-          && incomingData.host == existingData.host
-          && incomingData.createdAt == existingData.createdAt;
+      // Allow the host to update the race status, start time, and winner.
+      let isHostUpdate = isRaceHost(raceId) &&
+          (
+            incomingData.diff(existingData).affectedKeys().hasOnly(['status', 'startTime']) ||
+            incomingData.diff(existingData).affectedKeys().hasOnly(['status', 'winnerId'])
+          );
 
       return isHostUpdate || isJoining;
     }

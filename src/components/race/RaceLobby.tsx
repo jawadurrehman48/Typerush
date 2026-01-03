@@ -17,9 +17,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { getRandomParagraph } from '@/lib/paragraphs';
 import { toast } from '@/hooks/use-toast';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Clipboard, ClipboardCheck } from 'lucide-react';
-import { setDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
 type RaceLobbyProps = {
   onJoinRace: (raceId: string) => void;
@@ -32,43 +29,16 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
   
   const [raceName, setRaceName] = useState('');
   const [joinRaceId, setJoinRaceId] = useState('');
-  const [createdRaceId, setCreatedRaceId] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
-
-  const generateUniqueRaceId = async (): Promise<string> => {
-    let raceId: string;
-    let isUnique = false;
-    let attempts = 0;
-    const maxAttempts = 100;
-
-    while (!isUnique && attempts < maxAttempts) {
-      raceId = Math.floor(1000 + Math.random() * 9000).toString(); // 4-digit ID
-      const raceDocRef = doc(firestore, 'races', raceId);
-      const docSnap = await getDoc(raceDocRef);
-      if (!docSnap.exists()) {
-        isUnique = true;
-        return raceId;
-      }
-      attempts++;
-    }
-    
-    if (attempts >= maxAttempts) {
-        throw new Error("Could not find a unique race ID. Please try again.");
-    }
-    
-    // Fallback in the unlikely event of loop failure
-    return Math.floor(1000 + Math.random() * 9000).toString();
-  };
 
   const createRace = async () => {
     if (!user || !userProfile || !raceName.trim()) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Race name is required.",
+        description: "You must be logged in and provide a race name.",
       });
       return;
     }
@@ -100,6 +70,7 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
         progress: 0,
         wpm: 0,
         finishedTime: null,
+        photoURL: userProfile.photoURL ?? null
       };
       await setDoc(playerRef, playerData);
       
@@ -151,6 +122,7 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
             progress: 0,
             wpm: 0,
             finishedTime: null,
+            photoURL: userProfile.photoURL ?? null
           };
           transaction.set(playerDocRef, playerData);
     

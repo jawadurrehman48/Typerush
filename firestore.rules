@@ -141,7 +141,7 @@ service cloud.firestore {
       let existingData = resource.data;
 
       // Allow a player to join by incrementing the player count
-      let isJoining = incomingData.diff(existingData).affectedKeys().hasOnly(['playerCount'])
+      let isJoining = isSignedIn() && incomingData.diff(existingData).affectedKeys().hasOnly(['playerCount'])
                       && incomingData.playerCount == existingData.playerCount + 1;
 
       // Allow the host to update the race status, start time, and winner.

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { useUser, useAuth } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
+import { ThemeToggle } from '@/components/layout/theme-toggle';
 
 
 export default function Header() {
@@ -14,7 +15,9 @@ export default function Header() {
   const router = useRouter();
 
   const handleLogout = async () => {
-    await signOut(auth);
+    if (auth) {
+        await signOut(auth);
+    }
     router.push('/');
   };
 
@@ -45,7 +48,8 @@ export default function Header() {
             Leaderboard
           </Link>
         </nav>
-        <div className="flex flex-1 items-center justify-end">
+        <div className="flex flex-1 items-center justify-end gap-4">
+          <ThemeToggle />
           {isUserLoading ? (
             <div className="h-8 w-20 animate-pulse rounded-md bg-muted" />
           ) : user ? (

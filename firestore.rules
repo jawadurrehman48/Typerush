@@ -9,6 +9,7 @@
  *   public consumption.
  * - /races/{raceId}: Contains documents for multiplayer races.
  * - /races/{raceId}/players/{userId}: Contains player-specific data for a given race.
+ * - /paragraphs/{paragraphId}: Contains text snippets for the typing test.
  *
  * Key Security Decisions:
  * - User Enumeration is Disallowed: The top-level `/users` collection is not listable,
@@ -22,6 +23,8 @@
  * - Race Access Control: Races are publicly readable, but only authenticated users can create
  *   them. Joining and updating race progress is restricted to authenticated participants. The
  *   race host has special privileges to manage the race state.
+ * - Public Paragraphs: The `/paragraphs` collection is publicly readable so that any user or
+ *   guest can start a typing test. Writes should only be done via trusted server-side code (e.g. seeding script).
  *
  * Denormalization for Authorization:
  * - The `LeaderboardEntry` document contains a `userId` field. This is a deliberate design
@@ -185,6 +188,17 @@ service cloud.firestore {
         allow update: if isExistingOwner(userId);
         allow delete: if isExistingOwner(userId);
       }
+    }
+
+    /**
+     * @description Publicly readable collection of paragraphs for the typing test.
+     *              Writes should only be performed by admin/server-side processes (e.g., seeding).
+     * @path        /paragraphs/{paragraphId}
+     */
+    match /paragraphs/{paragraphId} {
+      allow get: if true;
+      allow list: if true;
+      allow create, update, delete: if false;
     }
   }
 }

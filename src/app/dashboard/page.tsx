@@ -59,7 +59,7 @@ export default function DashboardPage() {
   }, [userGameHistory]);
 
   const calculatedAverageWpm = useMemo(() => {
-    if (!userGamegHistory || userGameHistory.length === 0) return 0;
+    if (!userGameHistory || userGameHistory.length === 0) return 0;
     const totalWpm = userGameHistory.reduce((sum, game) => sum + game.score, 0);
     return Math.round(totalWpm / userGameHistory.length);
   }, [userGameHistory]);

@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Header from '@/components/layout/Header';
 import RaceLobby from '@/components/race/RaceLobby';
 import Race from '@/components/race/Race';
@@ -13,6 +13,12 @@ export default function RacePage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
 
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/');
+    }
+  }, [user, isUserLoading, router]);
+
   const handleJoinRace = (id: string) => {
     setRaceId(id);
   };
@@ -21,17 +27,12 @@ export default function RacePage() {
     setRaceId(null);
   };
 
-  if (isUserLoading) {
+  if (isUserLoading || !user) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="h-16 w-16 animate-spin rounded-full border-4 border-dashed border-primary"></div>
       </div>
     );
-  }
-
-  if (!user) {
-    router.push('/');
-    return null;
   }
 
   return (

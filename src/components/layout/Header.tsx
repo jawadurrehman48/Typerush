@@ -18,11 +18,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Skeleton } from '../ui/skeleton';
 
 
 export default function Header() {
   const { user, isUserLoading } = useUser();
-  const { data: userProfile } = useUserProfile();
+  const { data: userProfile, isLoading: isProfileLoading } = useUserProfile();
   const auth = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -73,7 +74,7 @@ export default function Header() {
         <div className="flex flex-1 items-center justify-end gap-4">
           <ThemeToggle />
           {isUserLoading ? (
-            <div className="h-8 w-8 animate-pulse rounded-full bg-muted" />
+            <Skeleton className="h-8 w-8 rounded-full" />
           ) : user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -97,7 +98,7 @@ export default function Header() {
                 <DropdownMenuItem asChild>
                   <Link href="/dashboard">
                     <LayoutDashboard className="mr-2 h-4 w-4" />
-                    <span>Settings</span>
+                    <span>Dashboard</span>
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
@@ -120,3 +121,5 @@ export default function Header() {
     </header>
   );
 }
+
+    

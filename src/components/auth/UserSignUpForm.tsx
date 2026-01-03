@@ -53,8 +53,12 @@ export function UserSignUpForm({ className, ...props }: UserSignUpFormProps) {
       const user = userCredential.user;
 
       if (user) {
+        // Use a generic placeholder avatar on signup
+        const placeholderAvatar = `https://picsum.photos/seed/${data.username}/200/200`;
+        
         await updateProfile(user, {
-            displayName: data.username
+            displayName: data.username,
+            photoURL: placeholderAvatar,
         });
           
         const userProfile = {
@@ -62,6 +66,7 @@ export function UserSignUpForm({ className, ...props }: UserSignUpFormProps) {
           email: user.email,
           username: data.username,
           fullName: data.fullName,
+          photoURL: placeholderAvatar,
           highestWPM: 0,
           gamesPlayed: 0,
           createdAt: new Date().toISOString(),
@@ -189,3 +194,5 @@ export function UserSignUpForm({ className, ...props }: UserSignUpFormProps) {
     </div>
   )
 }
+
+    

@@ -1,3 +1,6 @@
+
+'use client';
+
 import Image from 'next/image';
 import {
   Table,
@@ -9,21 +12,20 @@ import {
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
 import Header from '@/components/layout/Header';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, orderBy, limit } from 'firebase/firestore';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useMemo } from 'react';
+import { PlaceHolderImages } from '@/lib/placeholder-images';
 
-const leaderboardData = [
-  { rank: 1, player: 'Cypher', wpm: 152, accuracy: '98%', date: '2024-05-20', avatar: PlaceHolderImages[0].imageUrl },
-  { rank: 2, player: 'Glitch', wpm: 148, accuracy: '99%', date: '2024-05-19', avatar: PlaceHolderImages[1].imageUrl },
-  { rank: 3, player: 'Byte', wpm: 145, accuracy: '97%', date: '2024-05-20', avatar: PlaceHolderImages[2].imageUrl },
-  { rank: 4, player: 'Astra', wpm: 142, accuracy: '100%', date: '2024-05-18', avatar: PlaceHolderImages[3].imageUrl },
-  { rank: 5, player: 'Nexus', wpm: 139, accuracy: '96%', date: '2024-05-20', avatar: PlaceHolderImages[4].imageUrl },
-  { rank: 6, player: 'Raze', wpm: 135, accuracy: '95%', date: '2024-05-17' },
-  { rank: 7, player: 'Omen', wpm: 133, accuracy: '98%', date: '2024-05-19' },
-  { rank: 8, player: 'Jett', wpm: 131, accuracy: '97%', date: '2024-05-20' },
-  { rank: 9, player: 'Sage', wpm: 128, accuracy: '99%', date: '2024-05-18' },
-  { rank: 10, player: 'Viper', wpm: 125, accuracy: '96%', date: '2024-05-20' },
-];
+type LeaderboardEntry = {
+  username: string;
+  score: number;
+  accuracy: number;
+  timestamp: { toDate: () => Date };
+  photoURL?: string;
+};
 
 const rankColor = (rank: number) => {
   if (rank === 1) return 'bg-yellow-400/80 text-yellow-900 border-yellow-400';
@@ -33,6 +35,29 @@ const rankColor = (rank: number) => {
 };
 
 export default function LeaderboardPage() {
+  const firestore = useFirestore();
+  const leaderboardQuery = useMemoFirebase(
+    () =>
+      firestore
+        ? query(collection(firestore, 'leaderboard'), orderBy('score', 'desc'), limit(10))
+        : null,
+    [firestore]
+  );
+  const { data: leaderboardData, isLoading } = useCollection<LeaderboardEntry>(leaderboardQuery);
+
+  const formattedData = useMemo(() => {
+    return leaderboardData?.map((entry, index) => ({
+      ...entry,
+      rank: index + 1,
+      date: entry.timestamp.toDate().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      }),
+    })) ?? [];
+  }, [leaderboardData]);
+
+
   return (
     <>
     <Header />
@@ -56,8 +81,22 @@ export default function LeaderboardPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {leaderboardData.map((entry) => (
-                <TableRow key={entry.rank}>
+              {isLoading && Array.from({length: 10}).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell className='text-center'><Skeleton className="h-8 w-8 rounded-full mx-auto" /></TableCell>
+                  <TableCell>
+                    <div className='flex items-center gap-3'>
+                      <Skeleton className="h-10 w-10 rounded-full" />
+                      <Skeleton className="h-6 w-24" />
+                    </div>
+                  </TableCell>
+                  <TableCell className='text-right'><Skeleton className="h-6 w-8 ml-auto" /></TableCell>
+                  <TableCell className='text-right'><Skeleton className="h-6 w-8 ml-auto" /></TableCell>
+                  <TableCell className='text-right'><Skeleton className="h-6 w-24 ml-auto" /></TableCell>
+                </TableRow>
+              ))}
+              {formattedData.map((entry) => (
+                <TableRow key={entry.id}>
                   <TableCell className="text-center">
                     <Badge variant="outline" className={`font-bold text-lg p-2 justify-center ${rankColor(entry.rank)}`}>
                       {entry.rank}
@@ -66,21 +105,28 @@ export default function LeaderboardPage() {
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <Image
-                        src={entry.avatar ?? `https://picsum.photos/seed/${entry.player}/40/40`}
-                        alt={entry.player}
+                        src={entry.photoURL ?? `https://picsum.photos/seed/${entry.username}/40/40`}
+                        alt={entry.username}
                         width={40}
                         height={40}
                         className="rounded-full"
                         data-ai-hint="person portrait"
                       />
-                      <span className="font-medium">{entry.player}</span>
+                      <span className="font-medium">{entry.username}</span>
                     </div>
                   </TableCell>
-                  <TableCell className="text-right font-mono text-lg text-accent">{entry.wpm}</TableCell>
-                  <TableCell className="text-right font-mono text-lg">{entry.accuracy}</TableCell>
+                  <TableCell className="text-right font-mono text-lg text-accent">{entry.score}</TableCell>
+                  <TableCell className="text-right font-mono text-lg">{entry.accuracy}%</TableCell>
                   <TableCell className="text-right text-muted-foreground">{entry.date}</TableCell>
                 </TableRow>
               ))}
+               {!isLoading && formattedData.length === 0 && (
+                <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center">
+                        No scores on the leaderboard yet. Be the first!
+                    </TableCell>
+                </TableRow>
+               )}
             </TableBody>
           </Table>
         </CardContent>
@@ -89,3 +135,5 @@ export default function LeaderboardPage() {
     </>
   );
 }
+
+    

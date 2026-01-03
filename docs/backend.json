@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "UserProfile": {
@@ -18,6 +19,10 @@
           "type": "string",
           "description": "The user's email address.",
           "format": "email"
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "URL of the user's profile picture."
         },
         "highestWPM": {
           "type": "number",
@@ -116,3 +121,5 @@
     "reasoning": "The Firestore data structure is designed to support user authentication (email/password, guest), profile storage, leaderboard functionality, and game statistics tracking in the TypeRush application. The structure prioritizes authorization independence and clear security rules. User profiles are stored in a private collection `/users/{userId}`, ensuring only the authenticated user can access their own profile. Leaderboard entries are stored in a global collection `/leaderboard`, allowing efficient querying and display of top scores. The `username` is denormalized into the `LeaderboardEntry` documents to avoid needing to perform a `get()` operation from the `users` collection in security rules to ensure that the user still has that username. This is critical for atomic updates. All reads on the `leaderboard` collection can be granted if the `username` matches the user and the `userId` is valid."
   }
 }
+
+    

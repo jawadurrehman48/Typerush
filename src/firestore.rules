@@ -153,7 +153,7 @@ service cloud.firestore {
                               && existingData.status == 'waiting'
                               && incomingData.diff(existingData).affectedKeys().hasAll(['status', 'startTime']);
 
-      // Allow the first finisher to set the winnerId.
+      // Allow the first finisher to set the winnerId and finish the race.
       let isFirstFinisher = isSignedIn()
                             && incomingData.diff(existingData).affectedKeys().hasAll(['winnerId', 'status'])
                             && existingData.winnerId == null // Critical: winner not yet set
@@ -239,3 +239,5 @@ service cloud.firestore {
     }
   }
 }
+
+    

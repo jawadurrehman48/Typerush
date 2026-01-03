@@ -6,7 +6,7 @@ import Header from '@/components/layout/Header';
 import Race from '@/components/race/Race';
 import { useUser } from '@/firebase';
 import { useRouter } from 'next/navigation';
-import JoinOrCreateRace from '@/components/race/JoinOrCreateRace';
+import RaceLobby from '@/components/race/RaceLobby';
 
 export default function RacePage() {
   const [raceId, setRaceId] = useState<string | null>(null);
@@ -50,9 +50,9 @@ export default function RacePage() {
                 Race against others
               </h1>
               <p className="mb-12 text-center text-lg text-muted-foreground md:text-xl">
-                Create a private race and challenge your friends, or join one using a Race ID.
+                Create a private race and challenge your friends, or join an open race.
               </p>
-              <JoinOrCreateRace onJoinRace={handleJoinRace} />
+              <RaceLobby onJoinRace={handleJoinRace} />
             </>
           )}
         </div>

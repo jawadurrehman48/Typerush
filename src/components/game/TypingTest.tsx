@@ -123,7 +123,7 @@ const TypingTest = () => {
               key={index}
               className={cn({
                 'text-muted-foreground': state === 'untyped',
-                'text-green-500': state === 'correct',
+                'text-black dark:text-white': state === 'correct',
                 'text-destructive': state === 'incorrect',
                 'relative': userInput.length === index,
               })}

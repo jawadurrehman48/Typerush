@@ -1,18 +1,20 @@
 'use client';
 
 import Link from 'next/link';
-import { Keyboard, LogIn, LogOut } from 'lucide-react';
+import { Keyboard, LogIn, LogOut, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useUser, useAuth } from '@/firebase';
 import { signOut } from 'firebase/auth';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
+import { cn } from '@/lib/utils';
 
 
 export default function Header() {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   const handleLogout = async () => {
     if (auth) {
@@ -20,6 +22,12 @@ export default function Header() {
     }
     router.push('/');
   };
+
+  const navLinkClasses = (path: string) => 
+    cn(
+      'transition-colors hover:text-foreground/80',
+      pathname === path ? 'text-foreground' : 'text-foreground/60'
+    );
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -29,22 +37,16 @@ export default function Header() {
             <Keyboard className="h-6 w-6 text-primary" />
             <span className="font-bold inline-block">TypeRush</span>
             </Link>
-          <Link
-            href="/game"
-            className="transition-colors hover:text-foreground/80 text-foreground"
-          >
-            Game
+          <Link href="/game" className={navLinkClasses('/game')}>
+            Practice
           </Link>
-          <Link
-            href="/dashboard"
-            className="transition-colors hover:text-foreground/80 text-foreground/60"
-          >
+           <Link href="/race" className={navLinkClasses('/race')}>
+            Race
+          </Link>
+          <Link href="/dashboard" className={navLinkClasses('/dashboard')}>
             Dashboard
           </Link>
-          <Link
-            href="/leaderboard"
-            className="transition-colors hover:text-foreground/80 text-foreground/60"
-          >
+          <Link href="/leaderboard" className={navLinkClasses('/leaderboard')}>
             Leaderboard
           </Link>
         </nav>

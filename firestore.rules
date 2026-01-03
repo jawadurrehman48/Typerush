@@ -156,5 +156,37 @@ service cloud.firestore {
       allow update: if false;
       allow delete: if false;
     }
+
+    /**
+     * @description Manages multiplayer race sessions.
+     * @path /races/{raceId}
+     * @allow (get, list) Authenticated users can see all available races.
+     * @allow (create) Authenticated users can create new races.
+     * @allow (update) Race status and winner can be updated by participants.
+     */
+    match /races/{raceId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (
+        // Allow a participant to start the race if it's 'waiting'
+        (request.resource.data.status == 'running' && resource.data.status == 'waiting') ||
+        // Allow a participant to finish the race if it's 'running'
+        (request.resource.data.status == 'finished' && resource.data.status == 'running')
+      );
+
+      /**
+       * @description Manages individual player data within a race.
+       * @path /races/{raceId}/players/{userId}
+       * @allow (create) An authenticated user can join a race.
+       * @allow (update) A player can only update their own progress.
+       * @allow (get, list) All participants in a race can see each other's progress.
+       */
+      match /players/{userId} {
+        allow get, list: if isSignedIn() && exists(/databases/$(database)/documents/races/$(raceId));
+        allow create: if isOwner(userId);
+        allow update: if isOwner(userId);
+        allow delete: if false;
+      }
+    }
   }
 }

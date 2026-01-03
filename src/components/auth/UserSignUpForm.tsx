@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { useRouter } from 'next/navigation';
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { doc } from 'firebase/firestore';
 
 import { cn } from "@/lib/utils"
@@ -52,6 +52,10 @@ export function UserSignUpForm({ className, ...props }: UserSignUpFormProps) {
       const user = userCredential.user;
 
       if (user) {
+        await updateProfile(user, {
+            displayName: data.username
+        });
+          
         const userProfile = {
           id: user.uid,
           email: user.email,

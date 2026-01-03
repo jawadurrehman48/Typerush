@@ -134,6 +134,84 @@
       "required": [
         "text"
       ]
+    },
+    "Race": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Race",
+      "type": "object",
+      "description": "Represents a multiplayer typing race.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "paragraphId": {
+          "type": "string",
+          "description": "Reference to the Paragraph document used for the race."
+        },
+        "paragraphText": {
+          "type": "string",
+          "description": "The actual text of the paragraph for the race."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["waiting", "running", "finished"],
+          "description": "The current status of the race."
+        },
+        "startTime": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "Timestamp when the race starts. Null until started."
+        },
+        "winnerId": {
+          "type": ["string", "null"],
+          "description": "The userId of the winner. Null until a player finishes."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "paragraphId",
+        "paragraphText",
+        "status",
+        "createdAt"
+      ]
+    },
+    "Player": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Player",
+      "type": "object",
+      "description": "Represents a player's state within a Race.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The player's userId."
+        },
+        "username": {
+          "type": "string"
+        },
+        "progress": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "The player's typing progress as a percentage."
+        },
+        "wpm": {
+          "type": "number",
+          "description": "The player's current words per minute."
+        },
+        "finishedTime": {
+          "type": ["number", "null"],
+          "description": "The time in seconds it took the player to finish. Null if not finished."
+        }
+      },
+      "required": [
+        "id",
+        "username",
+        "progress"
+      ]
     }
   },
   "auth": {
@@ -212,8 +290,44 @@
             }
           ]
         }
+      },
+      {
+        "path": "/races/{raceId}",
+        "definition": {
+          "entityName": "Race",
+          "schema": {
+            "$ref": "#/backend/entities/Race"
+          },
+          "description": "Stores multiplayer race information. Authenticated users can create and read races.",
+          "params": [
+            {
+              "name": "raceId",
+              "description": "Unique ID for the race."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/races/{raceId}/players/{userId}",
+        "definition": {
+          "entityName": "Player",
+          "schema": {
+            "$ref": "#/backend/entities/Player"
+          },
+          "description": "Stores individual player state within a race. `userId` must match the authenticated user's UID. A player can join a race (create) and update their own progress.",
+          "params": [
+            {
+              "name": "raceId",
+              "description": "The ID of the race the player is in."
+            },
+            {
+              "name": "userId",
+              "description": "The unique ID of the player, matching their auth UID."
+            }
+          ]
+        }
       }
     ],
-    "reasoning": "The Firestore structure is designed to support user authentication, game score storage, and leaderboard functionality for the TypeRush application. It emphasizes authorization independence and clear security rules.  \n\nUserProfile Data: User profiles are stored in `/users/{userId}` using path-based ownership. This is the standard and preferred method for private user data.  This enables simple, secure rules based on `request.auth.uid == userId`.\n\nGameScore Data: Game scores are stored in a subcollection `/users/{userId}/game_scores/{gameScoreId}`. This hierarchical structure maintains the `User 1:N GameScore` relationship. Security rules can efficiently validate that `request.auth.uid == userId` to ensure only the authenticated user can create, read, update, or delete their own game scores.\n\nLeaderboard Data: Leaderboard entries are stored in the `/leaderboard/{leaderboardEntryId}` collection. Each entry contains the `userId`, `score`, `rank`, and `lastUpdated`. The Update Leaderboard Cloud Function will manage writes to the collection.  Listing the leaderboard for read access is simple and secure.\n\nParagraph Data: Paragraphs for the game are stored in the `/paragraphs/{paragraphId}` collection. This data is public and needs to be readable by all users, so the rules allow for global read access.\n\nAnalytics:  No specific analytics data structure is defined, but a collection like `/analytics/{analyticEventId}` could be used to store aggregated data points. Security would depend on the specific data being collected (e.g., aggregated stats could be world-readable).\n\nAuthorization Independence and QAPs:\n\nAuthorization Independence is achieved by avoiding `get()` calls in the security rules. The primary mechanism is the path-based ownership model for UserProfile and GameScore data.  The path itself encodes the authorization context.\n\nQAPs (Rules are not Filters) are supported due to the structural segregation. User profiles and game scores are stored in dedicated collections with clear ownership, simplifying the security rules for `list` operations.  The leaderboard and paragraphs collections are world-readable but write-protected via Cloud Functions, enabling secure listing of public entries."
+    "reasoning": "The Firestore structure is designed to support user authentication, game score storage, and leaderboard functionality for the TypeRush application. It emphasizes authorization independence and clear security rules.  \n\nUserProfile Data: User profiles are stored in `/users/{userId}` using path-based ownership. This is the standard and preferred method for private user data.  This enables simple, secure rules based on `request.auth.uid == userId`.\n\nGameScore Data: Game scores are stored in a subcollection `/users/{userId}/game_scores/{gameScoreId}`. This hierarchical structure maintains the `User 1:N GameScore` relationship. Security rules can efficiently validate that `request.auth.uid == userId` to ensure only the authenticated user can create, read, update, or delete their own game scores.\n\nLeaderboard Data: Leaderboard entries are stored in the `/leaderboard/{leaderboardEntryId}` collection. Each entry contains the `userId`, `score`, `rank`, and `lastUpdated`. The Update Leaderboard Cloud Function will manage writes to the collection.  Listing the leaderboard for read access is simple and secure.\n\nParagraph Data: Paragraphs for the game are stored in the `/paragraphs/{paragraphId}` collection. This data is public and needs to be readable by all users, so the rules allow for global read access.\n\nRace Data: Multiplayer races are stored in the `/races/{raceId}` collection. Authenticated users can create new races and read the list of available races. The state of each player in a race is stored in a subcollection `/races/{raceId}/players/{userId}`. This structure is secure and scalable, as it allows a player to only modify their own race data by enforcing `request.auth.uid == userId` on the subcollection path. This prevents one player from maliciously updating another's progress."
   }
 }

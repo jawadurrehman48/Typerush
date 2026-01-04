@@ -16,7 +16,8 @@ import { Label } from '@/components/ui/label';
 import { getRandomParagraph } from '@/lib/paragraphs';
 import { toast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Swords, LogIn } from 'lucide-react';
+import { Swords, LogIn, Copy, ArrowRight } from 'lucide-react';
+import * as React from 'react';
 
 type RaceLobbyProps = {
   onJoinRace: (raceId: string) => void;
@@ -85,6 +86,7 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
           username: userProfile.username,
           progress: 0,
           wpm: 0,
+          accuracy: 0,
           finishedTime: null,
           photoURL: userProfile.photoURL ?? null
         };
@@ -94,8 +96,18 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
       });
       
       toast({
-        title: "Race Created & Joined!",
-        description: `Your new race is ready.`,
+        title: `Race "${raceName.trim()}" Created!`,
+        description: `Race ID: ${newRaceId}. You have automatically joined.`,
+        action: (
+          <div className="flex gap-2">
+            <Button size="sm" onClick={() => {
+              navigator.clipboard.writeText(newRaceId);
+              toast({title: 'Copied ID!'})
+            }}>
+              <Copy className="mr-2" /> Copy
+            </Button>
+          </div>
+        ),
       });
 
       onJoinRace(newRaceId); // Automatically join the race
@@ -147,6 +159,7 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
             username: userProfile.username,
             progress: 0,
             wpm: 0,
+            accuracy: 0,
             finishedTime: null,
             photoURL: userProfile.photoURL ?? null
           };
@@ -175,10 +188,10 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
       <CardContent className="p-0">
         <Tabs defaultValue="create" className="w-full">
           <TabsList className="grid w-full grid-cols-2 h-14 rounded-t-lg rounded-b-none">
-            <TabsTrigger value="create" className="h-full text-md font-semibold flex gap-2 items-center">
+            <TabsTrigger value="create" className="h-full text-base sm:text-md font-semibold flex gap-2 items-center">
               <Swords className="h-5 w-5" /> Create Race
             </TabsTrigger>
-            <TabsTrigger value="join" className="h-full text-md font-semibold flex gap-2 items-center">
+            <TabsTrigger value="join" className="h-full text-base sm:text-md font-semibold flex gap-2 items-center">
               <LogIn className="h-5 w-5" /> Join Race
             </TabsTrigger>
           </TabsList>
@@ -229,3 +242,5 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
     </Card>
   );
 }
+
+    

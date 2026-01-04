@@ -121,7 +121,7 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
   }, [text, userInput, localPlayer]);
 
   const { wpm, progress } = useMemo(() => {
-    if (status !== 'running' || !raceData?.startTime || !text) return { wpm: 0, progress: 0 };
+    if (status !== 'running' || !raceData?.startTime || !text) return { wpm: localPlayer?.wpm ?? 0, progress: localPlayer?.progress ?? 0 };
 
     const start = raceData.startTime.toDate().getTime();
     const minutes = (Date.now() - start) / 1000 / 60;
@@ -137,7 +137,7 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
         Math.round((userInput.length / text.length) * 100)
       ),
     };
-  }, [userInput, text, raceData, status]);
+  }, [userInput, text, raceData, status, localPlayer]);
 
   const characters = useMemo(
     () =>
@@ -198,7 +198,10 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
 
       await updateDoc(localPlayerRef, finalPlayerUpdate);
 
+      // Atomically set winner if not already set
       if (raceData && !raceData.winnerId && user) {
+        // We use the non-blocking version because another user might be finishing at the same time
+        // The security rule is what actually enforces the atomic "first-write-wins"
         updateDocumentNonBlocking(raceRef, {
             winnerId: user.uid,
             status: 'finished',
@@ -234,16 +237,16 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
   }
 
   // Final Results View
-  if (raceData?.winnerId || status === 'finished') {
+  if (raceData?.winnerId) {
     return (
         <Card className="w-full border-2 shadow-lg">
-            <CardContent className="p-6">
+            <CardContent className="p-4 sm:p-6">
                 <div className="text-center mb-6">
-                    <h2 className="text-3xl font-bold text-primary">Race Finished!</h2>
+                    <h2 className="text-2xl sm:text-3xl font-bold text-primary">Race Finished!</h2>
                     {winner ? (
                         <div className="flex items-center justify-center gap-2 mt-2 text-yellow-500">
-                            <Trophy className="h-7 w-7" />
-                            <p className="text-xl font-bold">{winner.username} won!</p>
+                            <Trophy className="h-6 w-6 sm:h-7 sm:w-7" />
+                            <p className="text-lg sm:text-xl font-bold">{winner.username} won!</p>
                         </div>
                     ) : (
                         <p className="text-lg mt-2">The race is over.</p>
@@ -252,23 +255,23 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
 
                 <div className="space-y-3">
                     {sortedPlayers.map((player, index) => (
-                        <Card key={player.id} className={cn("flex items-center justify-between p-3", player.id === winner?.id && 'border-yellow-500 border-2')}>
-                            <div className="flex items-center gap-4">
-                                <span className="text-xl font-bold w-6 text-center">{index + 1}</span>
-                                <Image src={player.photoURL || `https://picsum.photos/seed/${player.username}/40/40`} alt={player.username} width={40} height={40} className="rounded-full" />
+                        <Card key={player.id} className={cn("flex items-center justify-between p-2 sm:p-3", player.id === winner?.id && 'border-yellow-500 border-2')}>
+                            <div className="flex items-center gap-2 sm:gap-4">
+                                <span className="text-lg sm:text-xl font-bold w-5 sm:w-6 text-center">{index + 1}</span>
+                                <Image src={player.photoURL || `https://picsum.photos/seed/${player.username}/40/40`} alt={player.username} width={40} height={40} className="rounded-full w-8 h-8 sm:w-10 sm:h-10" />
                                 <div>
-                                    <p className="font-semibold">{player.username} {player.id === user?.uid && '(You)'}</p>
-                                    <p className="text-sm text-muted-foreground">{player.finishedTime ? `${player.finishedTime.toFixed(2)}s` : 'DNF'}</p>
+                                    <p className="font-semibold text-sm sm:text-base">{player.username} {player.id === user?.uid && '(You)'}</p>
+                                    <p className="text-xs sm:text-sm text-muted-foreground">{player.finishedTime ? `${player.finishedTime.toFixed(2)}s` : 'DNF'}</p>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-6 font-mono text-right">
+                            <div className="flex items-center gap-3 sm:gap-6 font-mono text-right">
                                 <div>
-                                    <p className="text-sm text-muted-foreground">WPM</p>
-                                    <p className="text-lg font-bold text-primary">{player.wpm}</p>
+                                    <p className="text-xs sm:text-sm text-muted-foreground">WPM</p>
+                                    <p className="text-base sm:text-lg font-bold text-primary">{player.wpm}</p>
                                 </div>
                                 <div>
-                                    <p className="text-sm text-muted-foreground">Acc</p>
-                                    <p className="text-lg font-bold">{player.accuracy}%</p>
+                                    <p className="text-xs sm:text-sm text-muted-foreground">Acc</p>
+                                    <p className="text-base sm:text-lg font-bold">{player.accuracy}%</p>
                                 </div>
                             </div>
                         </Card>
@@ -286,28 +289,28 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
   // Active Race or Lobby View
   return (
     <Card className="w-full border-2 shadow-lg">
-      <CardContent className="p-6">
-        <div className="mb-6 flex items-start justify-between gap-4">
+      <CardContent className="p-4 sm:p-6">
+        <div className="mb-6 flex flex-col sm:flex-row items-start justify-between gap-4">
           <div className="flex flex-col">
-            <h2 className="text-2xl font-bold tracking-tighter text-primary">
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tighter text-primary">
               {raceData?.name}
             </h2>
-            <div className="flex items-center gap-2">
-                <p className="text-sm font-mono text-muted-foreground">ID: {raceId}</p>
+            <div className="flex items-center gap-1">
+                <p className="text-xs sm:text-sm font-mono text-muted-foreground">ID: {raceId}</p>
                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={copyRaceId}>
                     {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
                 </Button>
             </div>
           </div>
-          <div className="flex flex-col items-end gap-2">
+          <div className="flex flex-row sm:flex-col items-center sm:items-end gap-2 w-full sm:w-auto justify-between">
             <Badge
-              className="capitaize text-sm font-semibold"
+              className="capitalize text-sm font-semibold"
               variant={status === 'running' ? 'destructive' : 'default'}
             >
               {status}
             </Badge>
             <Button size="sm" variant="outline" onClick={onLeave}>
-              <LogOut className="mr-2 h-4 w-4" /> Leave Race
+              <LogOut className="mr-2 h-4 w-4" /> Leave
             </Button>
           </div>
         </div>
@@ -327,25 +330,25 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
                     height={24}
                     className="rounded-full"
                   />
-                  <span className="font-medium">
+                  <span className="font-medium truncate max-w-[120px] sm:max-w-none">
                     {player.id === raceData?.host && <Crown className="h-4 w-4 inline-block mr-1 text-yellow-500" />}
                     {player.username} {player.id === user?.uid && '(You)'}
                   </span>
                   {player.finishedTime && (
-                    <Badge variant="secondary">Finished!</Badge>
+                    <Badge variant="secondary" className="text-xs">Finished!</Badge>
                   )}
                 </div>
                 <span className="font-mono font-semibold text-primary">
                   {player.wpm} WPM
                 </span>
               </div>
-              <Progress value={player.progress} className="h-3" />
+              <Progress value={player.progress} className="h-2 sm:h-3" />
             </div>
           ))}
         </div>
 
         <div
-          className="relative mt-6 rounded-lg bg-muted/30 p-4 font-mono text-lg leading-relaxed tracking-wide break-words"
+          className="relative mt-6 rounded-lg bg-muted/30 p-3 sm:p-4 font-mono text-base sm:text-lg leading-relaxed tracking-wide break-words"
           onClick={() => inputRef.current?.focus()}
         >
           <input
@@ -391,7 +394,7 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
                   Start Race
                 </Button>
               ) : (
-                <p className="animate-pulse text-lg font-semibold text-primary">
+                <p className="animate-pulse text-base sm:text-lg font-semibold text-primary text-center p-4">
                   Waiting for host to start...
                 </p>
               )}
@@ -401,18 +404,18 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
 
         {isFinished && status === 'running' && (
           <div className="mt-6 rounded-lg bg-background p-4 text-center">
-            <h2 className="text-3xl font-bold text-primary">You Finished!</h2>
-            <p className="text-lg text-muted-foreground mt-2">Waiting for other players to finish...</p>
-            <div className="my-6 flex justify-center gap-8">
+            <h2 className="text-2xl sm:text-3xl font-bold text-primary">You Finished!</h2>
+            <p className="text-base sm:text-lg text-muted-foreground mt-2">Waiting for other players to finish...</p>
+            <div className="my-6 flex justify-center gap-4 sm:gap-8">
               <div className="text-primary">
-                <p className="text-sm text-muted-foreground">Your WPM</p>
-                <p className="font-mono text-4xl font-bold">
+                <p className="text-xs sm:text-sm text-muted-foreground">Your WPM</p>
+                <p className="font-mono text-3xl sm:text-4xl font-bold">
                   {localPlayer?.wpm}
                 </p>
               </div>
               <div className="text-primary">
-                <p className="text-sm text-muted-foreground">Your Accuracy</p>
-                <p className="font-mono text-4xl font-bold">{accuracy}%</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">Your Accuracy</p>
+                <p className="font-mono text-3xl sm:text-4xl font-bold">{accuracy}%</p>
               </div>
             </div>
           </div>

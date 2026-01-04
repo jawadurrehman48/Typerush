@@ -70,11 +70,11 @@ export default function DashboardPage() {
   return (
     <>
       <Header />
-      <div className="container mx-auto px-4 py-12 sm:px-6 lg:px-8">
-        <h1 className="mb-8 text-3xl font-bold tracking-tighter text-primary sm:text-4xl">
+      <main className="container mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <h1 className="mb-6 text-3xl font-bold tracking-tighter text-primary sm:text-4xl">
           Your Dashboard
         </h1>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Average WPM</CardTitle>
@@ -117,43 +117,43 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        <div className="mt-8 grid grid-cols-1 gap-8">
-          <div className="grid gap-8">
-            <Card className="md:col-span-3">
-              <CardHeader>
-                <CardTitle>WPM Progress</CardTitle>
-                <CardDescription>Your typing speed over the last 7 games.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {isHistoryLoading ? <Skeleton className="h-[250px] w-full" /> : (
-                  <ChartContainer
-                    config={{
-                      wpm: {
-                        label: 'WPM',
-                        color: 'hsl(var(--accent))',
-                      },
-                    }}
-                    className="h-[250px] w-full"
-                  >
-                    <RechartsBarChart data={processedChartData} margin={{ top: 20, right: 20, left: -10, bottom: 0 }}>
-                      <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
-                      <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} domain={[0, 'dataMax + 10']} />
-                      <ChartTooltip
-                        cursor={false}
-                        content={<ChartTooltipContent indicator="dot" />}
-                      />
-                      <Bar dataKey="wpm" fill="hsl(var(--accent))" radius={4} />
-                    </RechartsBarChart>
-                  </ChartContainer>
-                )}
-              </CardContent>
-            </Card>
-            <Card className="md:col-span-2">
-              <CardHeader>
-                <CardTitle>Recent Games</CardTitle>
-                <CardDescription>Your last 4 typing sessions.</CardDescription>
-              </CardHeader>
-              <CardContent>
+        <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-5">
+          <Card className="lg:col-span-3">
+            <CardHeader>
+              <CardTitle>WPM Progress</CardTitle>
+              <CardDescription>Your typing speed over the last 7 games.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isHistoryLoading ? <Skeleton className="h-[250px] w-full" /> : (
+                <ChartContainer
+                  config={{
+                    wpm: {
+                      label: 'WPM',
+                      color: 'hsl(var(--accent))',
+                    },
+                  }}
+                  className="h-[250px] w-full"
+                >
+                  <RechartsBarChart data={processedChartData} margin={{ top: 20, right: 20, left: -10, bottom: 0 }}>
+                    <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
+                    <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} domain={[0, 'dataMax + 10']} />
+                    <ChartTooltip
+                      cursor={false}
+                      content={<ChartTooltipContent indicator="dot" />}
+                    />
+                    <Bar dataKey="wpm" fill="hsl(var(--accent))" radius={4} />
+                  </RechartsBarChart>
+                </ChartContainer>
+              )}
+            </CardContent>
+          </Card>
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Recent Games</CardTitle>
+              <CardDescription>Your last 4 typing sessions.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -190,11 +190,11 @@ export default function DashboardPage() {
                     )}
                   </TableBody>
                 </Table>
-              </CardContent>
-            </Card>
-          </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
-      </div>
+      </main>
     </>
   );
 }

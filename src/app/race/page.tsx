@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -22,9 +23,9 @@ export default function RacePage() {
     return (
       <>
         <Header />
-        <div className="flex h-[80vh] items-center justify-center">
+        <main className="flex h-[80vh] items-center justify-center">
           <div className="h-16 w-16 animate-spin rounded-full border-4 border-dashed border-primary"></div>
-        </div>
+        </main>
       </>
     );
   }
@@ -32,7 +33,7 @@ export default function RacePage() {
   return (
     <>
       <Header />
-      <div className="container mx-auto flex flex-col items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
+      <main className="container mx-auto flex flex-col items-center justify-center px-4 py-8 sm:px-6 lg:px-8">
         <div className="w-full max-w-4xl">
           {raceId ? (
             <Race raceId={raceId} onLeave={() => setRaceId(null)} />
@@ -41,14 +42,16 @@ export default function RacePage() {
               <h1 className="mb-4 text-center text-4xl font-bold tracking-tighter text-primary sm:text-5xl md:text-6xl">
                 Race against others
               </h1>
-              <p className="mb-12 text-center text-lg text-muted-foreground md:text-xl">
+              <p className="mb-8 text-center text-lg text-muted-foreground md:text-xl sm:mb-12">
                 Create a private race and challenge your friends, or join a race by ID.
               </p>
               <RaceLobby onJoinRace={setRaceId} />
             </>
           )}
         </div>
-      </div>
+      </main>
     </>
   );
 }
+
+    

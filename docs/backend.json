@@ -1,0 +1,166 @@
+{
+  "entities": {
+    "UserProfile": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserProfile",
+      "type": "object",
+      "description": "Represents a user profile in the TypeRush application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the UserProfile entity."
+        },
+        "email": {
+          "type": "string",
+          "description": "User's email address.",
+          "format": "email"
+        },
+        "username": {
+          "type": "string",
+          "description": "User's chosen username."
+        },
+        "creationDate": {
+          "type": "string",
+          "description": "Date and time the user profile was created.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "username",
+        "creationDate"
+      ]
+    },
+    "GameHistory": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "GameHistory",
+      "type": "object",
+      "description": "Represents a single game played by a user.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the GameHistory entry."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to UserProfile. (Relationship: UserProfile 1:N GameHistory)"
+        },
+        "score": {
+          "type": "number",
+          "description": "The user's score in this game (WPM)."
+        },
+        "accuracy": {
+          "type": "number",
+          "description": "The user's accuracy percentage in this game."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Timestamp of when the game was played.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "score",
+        "accuracy",
+        "timestamp"
+      ]
+    },
+    "LeaderboardEntry": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "LeaderboardEntry",
+      "type": "object",
+      "description": "Represents an entry in the leaderboard.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the LeaderboardEntry entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to UserProfile. (Relationship: UserProfile 1:1 LeaderboardEntry)"
+        },
+        "score": {
+          "type": "number",
+          "description": "The user's highest score (WPM) on the leaderboard."
+        },
+        "lastUpdated": {
+          "type": "string",
+          "description": "Timestamp of when the leaderboard entry was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "score",
+        "lastUpdated"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "UserProfile",
+          "schema": {
+            "$ref": "#/backend/entities/UserProfile"
+          },
+          "description": "Stores user profile information. Uses path-based ownership, where only the user with the matching {userId} can read/write. ",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique ID of the user, matching the Firebase Auth UID."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/game_history/{gameHistoryId}",
+        "definition": {
+          "entityName": "GameHistory",
+          "schema": {
+            "$ref": "#/backend/entities/GameHistory"
+          },
+          "description": "Stores game history entries for a specific user. Uses path-based ownership; only the user with the matching {userId} can access their game history. ",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique ID of the user, matching the Firebase Auth UID."
+            },
+            {
+              "name": "gameHistoryId",
+              "description": "The unique ID of the game history entry."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/leaderboard/{leaderboardEntryId}",
+        "definition": {
+          "entityName": "LeaderboardEntry",
+          "schema": {
+            "$ref": "#/backend/entities/LeaderboardEntry"
+          },
+          "description": "Stores leaderboard entries. Includes denormalized `userId` for potential rule enforcement or querying, should writes need to be more restrictive than read.",
+          "params": [
+            {
+              "name": "leaderboardEntryId",
+              "description": "The unique ID of the leaderboard entry."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to be secure, scalable, and easily debuggable, following the core design principles and strategy mandates. It avoids hierarchical authorization dependencies, ensures clarity of intent, uses DBAC (Database Auth Based Control), and supports secure list operations (QAPs). \n\n**Authorization Independence:** Achieved through path-based ownership for user profiles and game history.  Since `LeaderboardEntry` depends on the `UserProfile` and needs to be efficiently queried, a denormalized `userId` is used. There are no `get()` calls in the security rules required to validate ownership.\n\n**Structural Segregation:**  Each collection contains documents with homogeneous security requirements. User profiles are stored separately from game history and leaderboard entries, each with specific access rules.\n\n**Access Modeling:**\n*   **Private Data:** User profiles (`/users/{userId}`) and game histories (`/users/{userId}/game_history/{gameHistoryId}`) utilize path-based ownership. Only the user (identified by `userId`) can access their own data. \n*   **Collaborative Data:**  Not explicitly present, but the structure can be extended with membership maps if collaborative features are added later.\n*   **Global Roles:** Not explicitly needed, but can be implemented using existence checks on a separate `/roles_admin/{userId}` collection if admin privileges are required.\n\n**QAPs (Rules are not Filters):** Path-based ownership allows for secure `list` operations on game history. List operations are restricted to the authenticated `userId` on the `/users/{userId}/game_history` collection.  The leaderboard itself is designed to be publicly readable for display purposes.  If more granular control is needed on which leaderboard entries a user can see, security rules can leverage the denormalized `userId` and compare it against the request's authentication token."
+  }
+}

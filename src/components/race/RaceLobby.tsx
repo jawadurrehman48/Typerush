@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -7,6 +6,7 @@ import {
   runTransaction,
   getDoc,
   collection,
+  setDoc,
 } from 'firebase/firestore';
 import { useFirestore, useUser, useUserProfile } from '@/firebase';
 import { Button } from '@/components/ui/button';
@@ -16,7 +16,7 @@ import { Label } from '@/components/ui/label';
 import { getRandomParagraph } from '@/lib/paragraphs';
 import { toast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Swords, LogIn, Copy, ArrowRight } from 'lucide-react';
+import { Swords, LogIn, Copy } from 'lucide-react';
 import * as React from 'react';
 
 type RaceLobbyProps = {
@@ -95,21 +95,6 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
         transaction.set(playerDocRef, playerData);
       });
       
-      toast({
-        title: `Race "${raceName.trim()}" Created!`,
-        description: `Race ID: ${newRaceId}. You have automatically joined.`,
-        action: (
-          <div className="flex gap-2">
-            <Button size="sm" onClick={() => {
-              navigator.clipboard.writeText(newRaceId);
-              toast({title: 'Copied ID!'})
-            }}>
-              <Copy className="mr-2" /> Copy
-            </Button>
-          </div>
-        ),
-      });
-
       onJoinRace(newRaceId); // Automatically join the race
 
     } catch (error: any) {
@@ -242,5 +227,3 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
     </Card>
   );
 }
-
-    

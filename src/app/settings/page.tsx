@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -52,9 +51,11 @@ export default function SettingsPage() {
     setIsUpdating(true);
     try {
       const updates: { username?: string, photoURL?: string } = {};
+      let authUpdates: { displayName?: string, photoURL?: string} = {};
 
-      if (newUsername !== userProfile?.username) {
+      if (newUsername.trim() && newUsername !== userProfile?.username) {
         updates.username = newUsername;
+        authUpdates.displayName = newUsername;
       }
       
       if (newPhoto) {
@@ -66,6 +67,7 @@ export default function SettingsPage() {
         });
         const photoURL = await promise;
         updates.photoURL = photoURL;
+        authUpdates.photoURL = photoURL;
       }
 
       if (Object.keys(updates).length > 0) {
@@ -74,10 +76,9 @@ export default function SettingsPage() {
         await updateDoc(userDocRef, updates);
 
         // Then, update the Auth profile
-        await updateProfile(auth.currentUser, {
-          displayName: updates.username ?? auth.currentUser.displayName,
-          photoURL: updates.photoURL ?? auth.currentUser.photoURL,
-        });
+        if (Object.keys(authUpdates).length > 0) {
+            await updateProfile(auth.currentUser, authUpdates);
+        }
 
         // Force refresh of the ID token to get fresh claims in security rules
         await auth.currentUser.getIdToken(true);
@@ -89,10 +90,11 @@ export default function SettingsPage() {
         description: 'Your profile has been successfully updated.',
       });
     } catch (error: any) {
+      console.error("Profile update failed:", error);
       toast({
         variant: 'destructive',
         title: 'Update Failed',
-        description: error.message || 'An error occurred.',
+        description: error.message || 'An error occurred while updating your profile.',
       });
     } finally {
       setIsUpdating(false);

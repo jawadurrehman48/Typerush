@@ -1,41 +1,4 @@
 
-/**
- * Core Philosophy: This ruleset enforces a strict user-ownership model for sensitive user data
- * and a public-read/owner-write model for shared, competitive data. The primary goal is to
- * protect user privacy while enabling public features like leaderboards.
- *
- * Data Structure:
- * - /users/{userId}: Contains private UserProfile documents, keyed by the user's auth UID.
- * - /users/{userId}/games/{gameId}: Contains history of games played by a user.
- * - /leaderboard/{leaderboardEntryId}: A global collection of all game scores, designed for
- *   public consumption.
- * - /races/{raceId}: Contains documents for multiplayer races.
- * - /races/{raceId}/players/{userId}: Contains player-specific data for a given race.
- * - /paragraphs/{paragraphId}: Contains text snippets for the typing test.
- *
- * Key Security Decisions:
- * - User Enumeration is Disallowed: The top-level `/users` collection is not listable,
- *   preventing malicious actors from scraping all user profiles.
- * - Strict Profile Ownership: A user can only access and modify their own document within
- *   the `/users` collection and its subcollections.
- * - Public Leaderboard & Races: The `/leaderboard` and `/races` collections are publicly readable
- *   by anyone, including unauthenticated guests, to allow for displaying high scores and open games.
- * - Data Integrity: Users can only create, update, or delete entries (like leaderboard scores
- *   or race data) that belong to them, enforced by checking a `userId` field or host status.
- * - Public Paragraphs: The `/paragraphs` collection is publicly readable so that any user or
- *   guest can start a typing test. Writes should only be done via trusted server-side code (e.g. seeding script).
- *
- * Denormalization for Authorization:
- * - The `LeaderboardEntry` document contains a `userId` field. This is a deliberate design
- *   choice that allows security rules to verify ownership for write operations without needing
- *   a slow and costly `get()` call to another document. This makes the rules faster and more
- *   secure.
- *
- * Structural Segregation:
- * - Private data (`UserProfile`) and public data (`LeaderboardEntry`, `Race`) are stored in separate
- *   top-level collections. This is a best practice that simplifies rules for list operations
- *   and improves query performance and security, preventing accidental exposure of private data.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -44,43 +7,23 @@ service cloud.firestore {
     //                        Helper Functions                        //
     //----------------------------------------------------------------//
 
-    /**
-     * Checks if the user is authenticated.
-     */
     function isSignedIn() {
       return request.auth != null;
     }
 
-    /**
-     * Checks if the currently authenticated user's UID matches the provided userId.
-     * This is the foundation of the user-ownership model.
-     */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    /**
-     * A robust check for state-changing operations (update, delete).
-     * It verifies ownership AND ensures the document actually exists.
-     */
     function isExistingOwner(ownerId) {
       return isOwner(ownerId) && resource != null;
     }
 
-    /**
-     * Checks if the authenticated user is the host of the race, by comparing against
-     * the username stored in their Firestore profile.
-     */
     function isRaceHost(raceId) {
-      let userProfile = get(/databases/$(database)/documents/users/$(request.auth.uid));
       let race = get(/databases/$(database)/documents/races/$(raceId));
-      return isSignedIn() && race.data.host == userProfile.data.username;
+      return isSignedIn() && race.data.host == request.auth.token.name;
     }
 
-    /**
-     * Validates a new UserProfile document.
-     * Ensures key fields match the user's auth token on creation.
-     */
     function isCreatingValidUserProfile(userId) {
       let data = request.resource.data;
       return data.id == userId
@@ -89,25 +32,16 @@ service cloud.firestore {
              && data.highestWPM == 0
              && data.gamesPlayed == 0;
     }
-
-    /**
-     * Validates an update to a UserProfile document.
-     * Enforces immutability on the core `id` field and allows specific fields to be updated.
-     */
+    
     function isUpdatingValidUserProfile() {
         let incomingData = request.resource.data;
         let existingData = resource.data;
-        // The internal `id` field must not be changed after creation.
         let isIdUnchanged = incomingData.id == existingData.id;
-        // Allow only specific fields to be updated.
         let allowedFieldsUpdated = incomingData.diff(existingData).affectedKeys().hasOnly(['gamesPlayed', 'highestWPM', 'username', 'photoURL', 'fullName']);
 
         return isIdUnchanged && allowedFieldsUpdated;
     }
 
-    /**
-     * Validates a new Game document in the user's subcollection.
-     */
     function isCreatingValidGameEntry() {
         let data = request.resource.data;
         return data.score is number && data.score >= 0
@@ -115,91 +49,64 @@ service cloud.firestore {
             && data.timestamp == request.time;
     }
 
-    /**
-     * Validates a new LeaderboardEntry document.
-     * Ensures the entry's `userId` and `username` fields correctly point to the person creating it.
-     */
     function isCreatingValidLeaderboardEntry() {
       let data = request.resource.data;
-      let userProfile = get(/databases/$(database)/documents/users/$(request.auth.uid));
-      // Ensure the score is a positive number, accuracy is between 0 and 100,
-      // and the timestamp is the server's time to prevent spoofing.
       return data.userId == request.auth.uid
-          && data.username == userProfile.data.username
+          && data.username == request.auth.token.name
           && data.score is number && data.score > 0
           && data.accuracy is number && data.accuracy >= 0 && data.accuracy <= 100
           && data.timestamp == request.time;
     }
 
-    /**
-     * Validates an update to a LeaderboardEntry document.
-     * Prevents changing core immutable fields like userId and timestamp.
-     */
     function isUpdatingValidLeaderboardEntry() {
       let data = request.resource.data;
-      // Core fields must not change on update.
       return data.userId == resource.data.userId
           && data.username == resource.data.username
           && data.timestamp == resource.data.timestamp;
     }
-
-    /**
-     * Validates a new Race document and the associated Player document creation in a transaction.
-     * It uses the user's Firestore profile as the source of truth for the username.
-     */
+    
     function isCreatingValidRace(raceId) {
         let raceData = request.resource.data;
         let auth = request.auth;
-        let userProfile = get(/databases/$(database)/documents/users/$(auth.uid));
 
-        // Find the write operation for the player document in the transaction batch.
-        // This is more robust than assuming a fixed index.
-        let playerWrite = request.writeBatch.filter(write => write.path[5] == auth.uid)[0];
+        let playerWrite = request.writeBatch[0];
         let incomingPlayerData = playerWrite.data;
 
-        let isValidRace = raceData.host == userProfile.data.username
+        let isValidRace = raceData.host == auth.token.name
             && raceData.status == 'waiting'
             && raceData.playerCount == 1;
-
+            
         let isValidPlayer = incomingPlayerData.id == auth.uid
-            && incomingPlayerData.username == userProfile.data.username
+            && incomingPlayerData.username == auth.token.name
             && incomingPlayerData.progress == 0
             && incomingPlayerData.wpm == 0
             && incomingPlayerData.accuracy == 0
             && incomingPlayerData.finishedTime == null;
 
-        // Check if the transaction is only for creating the race and the player doc
         return isValidRace && isValidPlayer && request.writeBatch.size() == 2;
     }
 
-    /**
-     * Validates an update to a Race document.
-     */
     function isUpdatingValidRace(raceId) {
       let incomingData = request.resource.data;
       let existingData = resource.data;
 
-      // Allow a player to join by incrementing the player count
       let isJoining = isSignedIn()
                       && incomingData.diff(existingData).affectedKeys().hasOnly(['playerCount'])
                       && incomingData.playerCount == existingData.playerCount + 1
                       && existingData.status == 'waiting';
 
-      // Allow the host to start the race
       let isHostStartingRace = isRaceHost(raceId)
                               && incomingData.status == 'running'
                               && existingData.status == 'waiting'
                               && incomingData.diff(existingData).affectedKeys().hasAll(['status', 'startTime']);
 
-      // Allow the first finisher to set the winnerId and finish the race.
       let isFirstFinisher = isSignedIn()
                             && incomingData.diff(existingData).affectedKeys().hasAll(['winnerId', 'status'])
-                            && existingData.winnerId == null // Critical: winner not yet set
+                            && existingData.winnerId == null
                             && incomingData.winnerId == request.auth.uid
                             && incomingData.status == 'finished'
                             && existingData.status == 'running';
                             
-      // Allow host to manually finish the race if needed (e.g. timeout)
       let isHostFinishingRace = isRaceHost(raceId)
                                 && incomingData.status == 'finished'
                                 && existingData.status != 'finished';
@@ -211,23 +118,13 @@ service cloud.firestore {
     //                       Collection Rules                         //
     //----------------------------------------------------------------//
 
-    /**
-     * @description Controls access to private user profile data. Only the document owner can
-     *              read or write their own profile. Listing all users is forbidden.
-     * @path        /users/{userId}
-     */
     match /users/{userId} {
       allow get: if isOwner(userId);
-      allow list: if false; // Prevent user enumeration attacks
+      allow list: if false; 
       allow create: if isOwner(userId) && isCreatingValidUserProfile(userId);
       allow update: if isExistingOwner(userId) && isUpdatingValidUserProfile();
       allow delete: if isExistingOwner(userId);
 
-      /**
-       * @description Controls access to a user's game history. Only the owner can manage
-       *              their own game records.
-       * @path        /users/{userId}/games/{gameId}
-       */
       match /games/{gameId} {
         allow get, list: if isOwner(userId);
         allow create: if isOwner(userId) && isCreatingValidGameEntry();
@@ -235,12 +132,6 @@ service cloud.firestore {
       }
     }
 
-    /**
-     * @description Controls access to the public leaderboard. The collection is readable by
-     *              anyone, but entries can only be created, updated, or deleted by the user
-     *              who achieved the score.
-     * @path        /leaderboard/{leaderboardEntryId}
-     */
     match /leaderboard/{leaderboardEntryId} {
       allow get: if true;
       allow list: if true;
@@ -249,12 +140,6 @@ service cloud.firestore {
       allow delete: if isExistingOwner(resource.data.userId);
     }
 
-    /**
-     * @description Controls access to multiplayer races. Races are publicly readable. Only
-     *              authenticated users can create races. The race host can start the race,
-     *              and players can join and update their own progress.
-     * @path        /races/{raceId}
-     */
     match /races/{raceId} {
       allow get: if true;
       allow list: if true;
@@ -262,11 +147,6 @@ service cloud.firestore {
       allow update: if isUpdatingValidRace(raceId);
       allow delete: if isRaceHost(raceId);
 
-      /**
-       * @description Controls access to player data within a race. Players can only create,
-       *              update, and delete their own document.
-       * @path        /races/{raceId}/players/{userId}
-       */
       match /players/{userId} {
         allow get: if isSignedIn();
         allow list: if isSignedIn();
@@ -276,15 +156,10 @@ service cloud.firestore {
       }
     }
 
-    /**
-     * @description Publicly readable collection of paragraphs for the typing test.
-     *              Writes should only be performed by admin/server-side processes (e.g., seeding).
-     * @path        /paragraphs/{paragraphId}
-     */
     match /paragraphs/{paragraphId} {
       allow get: if true;
       allow list: if true;
-      allow create, update, delete: if false; // Protect this collection from client-side writes
+      allow create, update, delete: if false;
     }
   }
 }

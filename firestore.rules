@@ -28,7 +28,7 @@ service cloud.firestore {
       return isOwner(userId)
              && data.id == userId
              && data.email == request.auth.token.email
-             && data.username == request.resource.data.username
+             && data.username == request.resource.data.username // Check against incoming data
              && data.highestWPM == 0
              && data.gamesPlayed == 0;
     }
@@ -51,6 +51,7 @@ service cloud.firestore {
 
     function isCreatingValidLeaderboardEntry() {
       let data = request.resource.data;
+      // Use the token name which is guaranteed to be up-to-date by the client logic.
       return data.userId == request.auth.uid
           && data.username == request.auth.token.name
           && data.score is number && data.score > 0
@@ -68,12 +69,14 @@ service cloud.firestore {
     function isCreatingValidRace(raceId) {
         let raceData = request.resource.data;
         let auth = request.auth;
-        // This is a transaction, so we need to inspect the write batch.
-        // We expect exactly two writes: one for the race, one for the player.
-        // The race write is `request.resource`. The player write must be inspected from the batch.
-        let playerWrite = request.writeBatch[0]; // Assuming player write is first, which is fragile but necessary
-        let incomingPlayerData = playerWrite.data; 
+        
+        // Due to transaction limitations, we must inspect the write batch.
+        // This is a common pattern for complex transactional rules.
+        let isPlayerDocCreated = request.writeBatch.size() == 2 && 
+            get(/databases/$(database)/documents/races/$(raceId)/players/$(auth.uid)) == null;
 
+        let incomingPlayerData = request.writeBatch[0].data; // Fragile, but necessary. Assumes player write is first.
+        
         let isValidRace = raceData.host == auth.token.name
             && raceData.status == 'waiting'
             && raceData.playerCount == 1;
@@ -85,7 +88,7 @@ service cloud.firestore {
             && incomingPlayerData.accuracy == 0
             && incomingPlayerData.finishedTime == null;
 
-        return isValidRace && isValidPlayer && request.writeBatch.size() == 2;
+        return isValidRace && isValidPlayer && isPlayerDocCreated;
     }
 
     function isUpdatingValidRace(raceId) {

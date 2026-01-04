@@ -60,6 +60,9 @@ export function UserSignUpForm({ className, ...props }: UserSignUpFormProps) {
             photoURL: placeholderAvatar,
         });
 
+        // After updating the profile, get a fresh ID token to ensure the custom claims are available for the rules
+        await user.getIdToken(true);
+
         // Step 2: Now create the Firestore document.
         const userProfile = {
           id: user.uid,

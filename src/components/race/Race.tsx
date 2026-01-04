@@ -26,18 +26,14 @@ type PlayerData = {
   photoURL?: string;
 };
 
-const STATIC_PLAYERS: Omit<PlayerData, 'id' | 'username' | 'photoURL'>[] = [
-    { progress: 0, wpm: 0, finishedTime: null, accuracy: 0 },
-    { progress: 0, wpm: 0, finishedTime: null, accuracy: 0 },
-];
-
 type RaceProps = {
   raceId: string;
   raceName: string;
+  rivalCount: number;
   onLeave: () => void;
 };
 
-const Race = ({ raceId, raceName, onLeave }: RaceProps) => {
+const Race = ({ raceId, raceName, rivalCount, onLeave }: RaceProps) => {
   const [copied, setCopied] = useState(false);
 
   const { user } = useUser();
@@ -58,23 +54,31 @@ const Race = ({ raceId, raceName, onLeave }: RaceProps) => {
 
   useEffect(() => {
     if (user && userProfile) {
+      const rivals = Array.from({ length: rivalCount }, (_, i) => ({
+        id: `user-${i + 2}`,
+        username: `Rival-${i + 1}`,
+        progress: 0,
+        wpm: 0,
+        finishedTime: null,
+        accuracy: 0,
+        photoURL: `https://picsum.photos/seed/Rival-${i + 1}/40/40`,
+      }));
+
       const initialPlayers: PlayerData[] = [
         {
           id: user.uid,
           username: userProfile.username ?? 'You',
           photoURL: userProfile.photoURL ?? undefined,
-          ...STATIC_PLAYERS[0]
+          progress: 0,
+          wpm: 0,
+          finishedTime: null,
+          accuracy: 0,
         },
-        ...STATIC_PLAYERS.slice(1).map((p, i) => ({
-          ...p,
-          id: `user-${i + 2}`,
-          username: `Rival-${i + 1}`,
-          photoURL: `https://picsum.photos/seed/Rival-${i + 1}/40/40`,
-        }))
+        ...rivals,
       ];
       setPlayersData(initialPlayers);
     }
-  }, [user, userProfile]);
+  }, [user, userProfile, rivalCount]);
 
   // Initialize race
   useEffect(() => {

@@ -6,7 +6,7 @@ import Race from '@/components/race/Race';
 import RaceLobby from '@/components/race/RaceLobby';
 
 export default function RacePage() {
-  const [raceDetails, setRaceDetails] = useState<{ id: string; name: string } | null>(null);
+  const [raceDetails, setRaceDetails] = useState<{ id: string; name: string; rivalCount: number } | null>(null);
   const [lobbyKey, setLobbyKey] = useState(0);
 
   const handleLeaveRace = () => {
@@ -14,8 +14,8 @@ export default function RacePage() {
     setLobbyKey(prevKey => prevKey + 1); // Increment key to force re-mount
   };
 
-  const handleJoinRace = (raceId: string, raceName: string) => {
-    setRaceDetails({ id: raceId, name: raceName });
+  const handleJoinRace = (raceId: string, raceName: string, rivalCount: number) => {
+    setRaceDetails({ id: raceId, name: raceName, rivalCount });
   };
 
   return (
@@ -24,7 +24,7 @@ export default function RacePage() {
       <main className="container mx-auto flex flex-col items-center justify-center px-4 py-8 sm:px-6 lg:px-8">
         <div className="w-full max-w-4xl">
           {raceDetails ? (
-            <Race raceId={raceDetails.id} raceName={raceDetails.name} onLeave={handleLeaveRace} />
+            <Race raceId={raceDetails.id} raceName={raceDetails.name} rivalCount={raceDetails.rivalCount} onLeave={handleLeaveRace} />
           ) : (
             <>
               <h1 className="mb-4 text-center text-4xl font-bold tracking-tighter text-primary sm:text-5xl md:text-6xl">

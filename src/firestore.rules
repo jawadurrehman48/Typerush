@@ -37,7 +37,7 @@ service cloud.firestore {
         let incomingData = request.resource.data;
         let existingData = resource.data;
         let isIdUnchanged = incomingData.id == existingData.id;
-        let allowedFieldsUpdated = incomingData.diff(existingData).affectedKeys().hasOnly(['gamesPlayed', 'highestWPM', 'username', 'photoURL', 'fullName']);
+        let allowedFieldsUpdated = incomingData.diff(existingData).affectedKeys().hasOnly(['gamesPlayed', 'highestWPM', 'username', 'photoURL']);
 
         return isIdUnchanged && allowedFieldsUpdated;
     }
@@ -68,24 +68,12 @@ service cloud.firestore {
     function isCreatingValidRace(raceId) {
         let raceData = request.resource.data;
         let auth = request.auth;
-        // This is a transaction, so we need to inspect the write batch.
-        // We expect exactly two writes: one for the race, one for the player.
-        // The race write is `request.resource`. The player write must be inspected from the batch.
-        let playerWrite = request.writeBatch[0]; // Assuming player write is first, which is fragile but necessary
-        let incomingPlayerData = playerWrite.data; 
-
+        
         let isValidRace = raceData.host == auth.token.name
             && raceData.status == 'waiting'
             && raceData.playerCount == 1;
 
-        let isValidPlayer = incomingPlayerData.id == auth.uid
-            && incomingPlayerData.username == auth.token.name
-            && incomingPlayerData.progress == 0
-            && incomingPlayerData.wpm == 0
-            && incomingPlayerData.accuracy == 0
-            && incomingPlayerData.finishedTime == null;
-
-        return isValidRace && isValidPlayer && request.writeBatch.size() == 2;
+        return isValidRace;
     }
 
     function isUpdatingValidRace(raceId) {
@@ -156,9 +144,7 @@ service cloud.firestore {
       match /players/{userId} {
         allow get: if isSignedIn();
         allow list: if isSignedIn();
-        // Allow player to join if race exists and is waiting
         allow create: if isOwner(userId);
-        // Allow player to update their own progress
         allow update: if isOwner(userId);
         allow delete: if isOwner(userId);
       }

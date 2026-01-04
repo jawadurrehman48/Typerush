@@ -68,27 +68,31 @@ service cloud.firestore {
     }
 
     /**
-     * Checks if the authenticated user is the host of the race.
-     * It looks up the `host` field on the existing race document.
+     * Checks if the authenticated user is the host of the race, by comparing against
+     * the username stored in their Firestore profile.
      */
     function isRaceHost(raceId) {
+      let userProfile = get(/databases/$(database)/documents/users/$(request.auth.uid));
       let race = get(/databases/$(database)/documents/races/$(raceId));
-      return isSignedIn() && race.data.host == request.auth.token.name;
+      return isSignedIn() && race.data.host == userProfile.data.username;
     }
 
     /**
      * Validates a new UserProfile document.
-     * In Prototyping Mode, we only validate fields essential for authorization and relational integrity.
-     * This ensures the document's internal `id` matches the document's path ID (`userId`).
+     * Ensures key fields match the user's auth token on creation.
      */
     function isCreatingValidUserProfile(userId) {
-      return request.resource.data.id == userId;
+      let data = request.resource.data;
+      return data.id == userId
+             && data.email == request.auth.token.email
+             && data.username == request.auth.token.name
+             && data.highestWPM == 0
+             && data.gamesPlayed == 0;
     }
 
     /**
      * Validates an update to a UserProfile document.
-     * Enforces immutability on the core `id` field to prevent re-linking the profile.
-     * Allows updating gamesPlayed and highestWPM.
+     * Enforces immutability on the core `id` field and allows specific fields to be updated.
      */
     function isUpdatingValidUserProfile() {
         let incomingData = request.resource.data;
@@ -96,7 +100,7 @@ service cloud.firestore {
         // The internal `id` field must not be changed after creation.
         let isIdUnchanged = incomingData.id == existingData.id;
         // Allow only specific fields to be updated.
-        let allowedFieldsUpdated = incomingData.diff(existingData).affectedKeys().hasOnly(['gamesPlayed', 'highestWPM', 'username', 'photoURL']);
+        let allowedFieldsUpdated = incomingData.diff(existingData).affectedKeys().hasOnly(['gamesPlayed', 'highestWPM', 'username', 'photoURL', 'fullName']);
 
         return isIdUnchanged && allowedFieldsUpdated;
     }
@@ -113,14 +117,15 @@ service cloud.firestore {
 
     /**
      * Validates a new LeaderboardEntry document.
-     * Ensures the entry's `userId` field correctly points to the person creating it.
+     * Ensures the entry's `userId` and `username` fields correctly point to the person creating it.
      */
     function isCreatingValidLeaderboardEntry() {
       let data = request.resource.data;
+      let userProfile = get(/databases/$(database)/documents/users/$(request.auth.uid));
       // Ensure the score is a positive number, accuracy is between 0 and 100,
       // and the timestamp is the server's time to prevent spoofing.
       return data.userId == request.auth.uid
-          && data.username == request.auth.token.name
+          && data.username == userProfile.data.username
           && data.score is number && data.score > 0
           && data.accuracy is number && data.accuracy >= 0 && data.accuracy <= 100
           && data.timestamp == request.time;
@@ -129,7 +134,6 @@ service cloud.firestore {
     /**
      * Validates an update to a LeaderboardEntry document.
      * Prevents changing core immutable fields like userId and timestamp.
-     * Allows updating score and accuracy.
      */
     function isUpdatingValidLeaderboardEntry() {
       let data = request.resource.data;
@@ -140,20 +144,36 @@ service cloud.firestore {
     }
 
     /**
-     * Validates a new Race document.
-     * Ensures the `host` field is set to the creator's username and playerCount is 1.
+     * Validates a new Race document and the associated Player document creation in a transaction.
+     * It uses the user's Firestore profile as the source of truth for the username.
      */
-    function isCreatingValidRace() {
-      return request.resource.data.host == request.auth.token.name
-          && request.resource.data.status == 'waiting'
-          && request.resource.data.playerCount == 1;
+    function isCreatingValidRace(raceId) {
+        let raceData = request.resource.data;
+        let auth = request.auth;
+        let userProfile = get(/databases/$(database)/documents/users/$(auth.uid));
+
+        // Find the write operation for the player document in the transaction batch.
+        // This is more robust than assuming a fixed index.
+        let playerWrite = request.writeBatch.filter(write => write.path[5] == auth.uid)[0];
+        let incomingPlayerData = playerWrite.data;
+
+        let isValidRace = raceData.host == userProfile.data.username
+            && raceData.status == 'waiting'
+            && raceData.playerCount == 1;
+
+        let isValidPlayer = incomingPlayerData.id == auth.uid
+            && incomingPlayerData.username == userProfile.data.username
+            && incomingPlayerData.progress == 0
+            && incomingPlayerData.wpm == 0
+            && incomingPlayerData.accuracy == 0
+            && incomingPlayerData.finishedTime == null;
+
+        // Check if the transaction is only for creating the race and the player doc
+        return isValidRace && isValidPlayer && request.writeBatch.size() == 2;
     }
 
     /**
      * Validates an update to a Race document.
-     * Allows the host to change status or winner.
-     * Allows anyone to increment player count (for joining).
-     * Allows the first finisher to claim the winnerId.
      */
     function isUpdatingValidRace(raceId) {
       let incomingData = request.resource.data;
@@ -238,7 +258,7 @@ service cloud.firestore {
     match /races/{raceId} {
       allow get: if true;
       allow list: if true;
-      allow create: if isSignedIn() && isCreatingValidRace();
+      allow create: if isSignedIn() && isCreatingValidRace(raceId);
       allow update: if isUpdatingValidRace(raceId);
       allow delete: if isRaceHost(raceId);
 

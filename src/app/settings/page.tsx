@@ -12,6 +12,7 @@ import { toast } from '@/hooks/use-toast';
 import { doc, updateDoc } from 'firebase/firestore';
 import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { updateProfile } from 'firebase/auth';
 
 export default function SettingsPage() {
   const { user } = useUser();
@@ -46,12 +47,16 @@ export default function SettingsPage() {
   };
 
   const handleProfileUpdate = async () => {
-    if (!user || !firestore) return;
+    if (!user || !firestore || !auth.currentUser) return;
 
     setIsUpdating(true);
     try {
-      const updates: { username: string, photoURL?: string } = { username: newUsername };
+      const updates: { username?: string, photoURL?: string } = {};
 
+      if (newUsername !== userProfile?.username) {
+        updates.username = newUsername;
+      }
+      
       if (newPhoto) {
         const reader = new FileReader();
         const promise = new Promise<string>((resolve, reject) => {
@@ -63,9 +68,21 @@ export default function SettingsPage() {
         updates.photoURL = photoURL;
       }
 
-      // Update Firestore profile
-      const userDocRef = doc(firestore, 'users', user.uid);
-      await updateDoc(userDocRef, updates);
+      if (Object.keys(updates).length > 0) {
+        // Update Firestore profile first
+        const userDocRef = doc(firestore, 'users', user.uid);
+        await updateDoc(userDocRef, updates);
+
+        // Then, update the Auth profile
+        await updateProfile(auth.currentUser, {
+          displayName: updates.username ?? auth.currentUser.displayName,
+          photoURL: updates.photoURL ?? auth.currentUser.photoURL,
+        });
+
+        // Force refresh of the ID token to get fresh claims in security rules
+        await auth.currentUser.getIdToken(true);
+      }
+
 
       toast({
         title: 'Profile Updated',

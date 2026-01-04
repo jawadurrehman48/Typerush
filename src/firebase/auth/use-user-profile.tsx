@@ -1,7 +1,7 @@
 'use client';
 
 import { doc } from 'firebase/firestore';
-import { useDoc, useFirestore, useUser, useMemoFirebase } from '@/firebase/provider';
+import { useDoc, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 
 type UserProfile = {
   username: string;

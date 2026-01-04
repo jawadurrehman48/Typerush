@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
@@ -72,9 +71,7 @@ const TypingTest = () => {
     }
   }, [status]);
   
-  const handleGameFinish = async () => {
-    setEndTime(Date.now());
-
+  const handleGameFinish = async (currentWpm: number, currentAccuracy: number) => {
     if (!user || !firestore) return;
 
     try {
@@ -88,7 +85,7 @@ const TypingTest = () => {
             
             const gamesPlayed = (userDoc.data().gamesPlayed || 0) + 1;
             const currentHighestWPM = userDoc.data().highestWPM || 0;
-            const newHighestWPM = Math.max(currentHighestWPM, wpm);
+            const newHighestWPM = Math.max(currentHighestWPM, currentWpm);
 
             // Update user's main profile stats
             transaction.update(userRef, {
@@ -99,20 +96,20 @@ const TypingTest = () => {
             // Create a record for the game in a subcollection
             const gameRef = doc(collection(firestore, 'users', user.uid, 'games'));
             transaction.set(gameRef, {
-                score: wpm,
-                accuracy: accuracy,
+                score: currentWpm,
+                accuracy: currentAccuracy,
                 timestamp: serverTimestamp()
             });
 
             // Also create a leaderboard entry
-            if(wpm > 0) {
+            if(currentWpm > 0) {
               const leaderboardRef = doc(collection(firestore, "leaderboard"));
               transaction.set(leaderboardRef, {
                   userId: user.uid,
                   username: user.displayName,
                   photoURL: user.photoURL,
-                  score: wpm,
-                  accuracy: accuracy,
+                  score: currentWpm,
+                  accuracy: currentAccuracy,
                   timestamp: serverTimestamp(),
               });
             }
@@ -135,8 +132,16 @@ const TypingTest = () => {
       setUserInput(value);
 
       if (value.length === text.length) {
+        setEndTime(Date.now());
         setStatus('finished');
-        handleGameFinish(); // Call the finish handler
+        
+        // Calculate final stats to pass to handler
+        const durationInMinutes = (Date.now() - (startTime ?? Date.now())) / 1000 / 60;
+        const correctChars = value.split('').filter((char, index) => char === text[index]).length;
+        const finalWpm = Math.round((correctChars / 5) / durationInMinutes);
+        const finalAccuracy = Math.round((correctChars / value.length) * 100);
+
+        handleGameFinish(finalWpm, finalAccuracy);
       }
     }
   };
@@ -241,5 +246,3 @@ const TypingTest = () => {
 };
 
 export default TypingTest;
-
-    

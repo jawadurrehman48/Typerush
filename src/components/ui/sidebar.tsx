@@ -1,3 +1,4 @@
+// This component is not used in the application, but is part of the default template.
 "use client"
 
 import * as React from "react"

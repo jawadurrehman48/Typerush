@@ -2,12 +2,14 @@
 
 import { doc } from 'firebase/firestore';
 import { useDoc, useFirestore, useUser, useMemoFirebase } from '@/firebase';
-import { useUserProfile as useUserProfileHook } from '@/firebase/auth/use-user-profile';
 
 type UserProfile = {
   username: string;
   fullName: string;
   email: string;
+  photoURL: string | null;
+  highestWPM: number;
+  gamesPlayed: number;
 };
 
 export function useUserProfile() {

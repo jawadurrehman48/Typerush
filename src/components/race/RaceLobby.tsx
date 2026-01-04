@@ -6,7 +6,6 @@ import {
   runTransaction,
   getDoc,
   collection,
-  setDoc,
 } from 'firebase/firestore';
 import { useFirestore, useUser, useUserProfile } from '@/firebase';
 import { Button } from '@/components/ui/button';
@@ -16,8 +15,7 @@ import { Label } from '@/components/ui/label';
 import { getRandomParagraph } from '@/lib/paragraphs';
 import { toast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Swords, LogIn, Copy } from 'lucide-react';
-import * as React from 'react';
+import { Swords, LogIn } from 'lucide-react';
 
 type RaceLobbyProps = {
   onJoinRace: (raceId: string) => void;

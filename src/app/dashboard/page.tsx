@@ -1,4 +1,3 @@
-
 'use client';
 
 import { BarChart, Clock, Target, TrendingUp } from 'lucide-react';
@@ -198,5 +197,3 @@ export default function DashboardPage() {
     </>
   );
 }
-
-    

@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "UserProfile": {
@@ -14,6 +13,10 @@
         "username": {
           "type": "string",
           "description": "The user's chosen username."
+        },
+        "fullName": {
+          "type": "string",
+          "description": "The user's full name."
         },
         "email": {
           "type": "string",
@@ -88,6 +91,9 @@
         "username": {
           "type": "string",
           "description": "The username associated with this leaderboard entry."
+        },
+        "photoURL": {
+          "type": ["string", "null"]
         },
         "score": {
           "type": "number",
@@ -207,13 +213,7 @@
           "schema": {
             "$ref": "#/backend/entities/UserProfile"
           },
-          "description": "Stores user profile data. Path-based ownership ensures only the authenticated user can access their profile. Includes 'id', 'username', 'email', 'highestWPM', and 'gamesPlayed'.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user, corresponding to their Firebase Authentication UID."
-            }
-          ]
+          "description": "Stores user profile data. Path-based ownership ensures only the authenticated user can access their profile. Includes 'id', 'username', 'email', 'highestWPM', and 'gamesPlayed'."
         }
       },
       {
@@ -223,17 +223,7 @@
           "schema": {
             "$ref": "#/backend/entities/Game"
           },
-          "description": "Stores the history of games played by a specific user. Path-based ownership ensures only the authenticated user can access their own game history.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user."
-            },
-            {
-              "name": "gameId",
-              "description": "The unique identifier for the game entry."
-            }
-          ]
+          "description": "Stores the history of games played by a specific user. Path-based ownership ensures only the authenticated user can access their own game history."
         }
       },
       {
@@ -243,13 +233,7 @@
           "schema": {
             "$ref": "#/backend/entities/LeaderboardEntry"
           },
-          "description": "Stores leaderboard entries. Includes denormalized 'username' from UserProfile for authorization independence. Includes 'userId', 'username', 'score', and 'timestamp'.",
-          "params": [
-            {
-              "name": "leaderboardEntryId",
-              "description": "The unique identifier for the leaderboard entry."
-            }
-          ]
+          "description": "Stores leaderboard entries. Includes denormalized 'username' from UserProfile for authorization independence. Includes 'userId', 'username', 'score', and 'timestamp'."
         }
       },
        {
@@ -259,13 +243,7 @@
           "schema": {
             "$ref": "#/backend/entities/Race"
           },
-          "description": "Stores documents for multiplayer races. Publicly readable, with write access controlled by ownership and race status.",
-          "params": [
-            {
-              "name": "raceId",
-              "description": "The unique identifier for the race."
-            }
-          ]
+          "description": "Stores documents for multiplayer races. Publicly readable, with write access controlled by ownership and race status."
         }
       },
       {
@@ -275,20 +253,9 @@
           "schema": {
             "$ref": "#/backend/entities/Player"
           },
-          "description": "Stores player-specific data within a race. Only the player themselves can create or update their own document.",
-          "params": [
-            {
-              "name": "raceId",
-              "description": "The ID of the race the player is in."
-            },
-            {
-              "name": "userId",
-              "description": "The user ID of the player."
-            }
-          ]
+          "description": "Stores player-specific data within a race. Only the player themselves can create or update their own document."
         }
       }
-    ],
-    "reasoning": "The Firestore data structure is designed to support user authentication (email/password, guest), profile storage, leaderboard functionality, and game statistics tracking in the TypeRush application. The structure prioritizes authorization independence and clear security rules. User profiles are stored in a private collection `/users/{userId}`, ensuring only the authenticated user can access their own profile. A subcollection `/users/{userId}/games` stores a user's individual game history. Leaderboard entries are stored in a global collection `/leaderboard`, allowing efficient querying and display of top scores. The `username` is denormalized into the `LeaderboardEntry` documents to avoid needing to perform a `get()` operation from the `users` collection in security rules to ensure that the user still has that username. This is critical for atomic updates. All reads on the `leaderboard` collection can be granted if the `username` matches the user and the `userId` is valid."
+    ]
   }
 }

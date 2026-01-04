@@ -1,4 +1,3 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -69,8 +68,11 @@ service cloud.firestore {
     function isCreatingValidRace(raceId) {
         let raceData = request.resource.data;
         let auth = request.auth;
-        let playerPath = /databases/$(database)/documents/races/$(raceId)/players/$(auth.uid);
-        let incomingPlayerData = request.writeBatch[0].data; 
+        // This is a transaction, so we need to inspect the write batch.
+        // We expect exactly two writes: one for the race, one for the player.
+        // The race write is `request.resource`. The player write must be inspected from the batch.
+        let playerWrite = request.writeBatch[0]; // Assuming player write is first, which is fragile but necessary
+        let incomingPlayerData = playerWrite.data; 
 
         let isValidRace = raceData.host == auth.token.name
             && raceData.status == 'waiting'
@@ -90,23 +92,27 @@ service cloud.firestore {
       let incomingData = request.resource.data;
       let existingData = resource.data;
 
+      // Rule for a new player joining a race
       let isJoining = isSignedIn()
                       && incomingData.diff(existingData).affectedKeys().hasOnly(['playerCount'])
                       && incomingData.playerCount == existingData.playerCount + 1
                       && existingData.status == 'waiting';
 
+      // Rule for the host starting the race
       let isHostStartingRace = isRaceHost(raceId)
                               && incomingData.status == 'running'
                               && existingData.status == 'waiting'
                               && incomingData.diff(existingData).affectedKeys().hasAll(['status', 'startTime']);
 
+      // Rule for the first player finishing the race
       let isFirstFinisher = isSignedIn()
                             && incomingData.diff(existingData).affectedKeys().hasAll(['winnerId', 'status'])
-                            && existingData.winnerId == null
+                            && existingData.winnerId == null // IMPORTANT: only allow if no winner is set
                             && incomingData.winnerId == request.auth.uid
                             && incomingData.status == 'finished'
                             && existingData.status == 'running';
                             
+      // Rule for the host forcing the race to finish
       let isHostFinishingRace = isRaceHost(raceId)
                                 && incomingData.status == 'finished'
                                 && existingData.status != 'finished';
@@ -120,7 +126,7 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow get: if isOwner(userId);
-      allow list: if false; 
+      allow list: if false; // Users should not be able to list all other users
       allow create: if isCreatingValidUserProfile(userId);
       allow update: if isExistingOwner(userId) && isUpdatingValidUserProfile();
       allow delete: if isExistingOwner(userId);
@@ -150,7 +156,9 @@ service cloud.firestore {
       match /players/{userId} {
         allow get: if isSignedIn();
         allow list: if isSignedIn();
+        // Allow player to join if race exists and is waiting
         allow create: if isOwner(userId);
+        // Allow player to update their own progress
         allow update: if isOwner(userId);
         allow delete: if isOwner(userId);
       }

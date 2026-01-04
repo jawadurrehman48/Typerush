@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
@@ -426,5 +425,3 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
 };
 
 export default Race;
-
-    

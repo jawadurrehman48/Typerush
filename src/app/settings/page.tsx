@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -59,7 +58,11 @@ export default function SettingsPage() {
         authUpdates.displayName = newUsername;
       }
       
+      // For photo updates, it's more complex with storage.
+      // For simplicity, we'll use a placeholder or data URL if needed.
+      // In a real app, you would upload to Firebase Storage and get a URL.
       if (newPhoto) {
+        // This is a placeholder for demonstration. In a real app, upload the file.
         const reader = new FileReader();
         const promise = new Promise<string>((resolve, reject) => {
           reader.onloadend = () => resolve(reader.result as string);

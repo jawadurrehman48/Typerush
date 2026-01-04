@@ -1,8 +1,7 @@
-
 'use client';
 
 import Link from 'next/link';
-import { Keyboard, Menu, X, LogIn, LogOut, LayoutDashboard, Settings, Trophy, Zap, User as UserIcon, Swords } from 'lucide-react';
+import { Keyboard, Menu, X, LogIn, LogOut, LayoutDashboard, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useUser, useAuth, useUserProfile } from '@/firebase';
 import { signOut } from 'firebase/auth';
@@ -55,7 +54,7 @@ export default function Header() {
     if (names.length > 1 && names[0] && names[1]) {
       return names[0][0] + names[1][0];
     }
-    return name.substring(0, 2);
+    return name.substring(0, 2).toUpperCase();
   }
 
   const NavLinks = () => (
@@ -171,5 +170,3 @@ export default function Header() {
     </header>
   );
 }
-
-    

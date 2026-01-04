@@ -1,4 +1,3 @@
-
 import { Firestore, collection, getDocs, query, where, documentId } from 'firebase/firestore';
 
 const paragraphsCol = 'paragraphs';

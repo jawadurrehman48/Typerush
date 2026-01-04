@@ -7,6 +7,9 @@ type UserProfile = {
   username: string;
   fullName: string;
   email: string;
+  photoURL: string | null;
+  highestWPM: number;
+  gamesPlayed: number;
 };
 
 export function useUserProfile() {

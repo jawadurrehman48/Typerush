@@ -6,7 +6,9 @@ export const paragraphs = [
   "Programming is the art of telling a computer what to do. It involves logic, creativity, and a lot of patience. Writing clean, efficient code is a skill that takes years to master.",
   "The vast expanse of the cosmos has always fascinated humanity. Stars, galaxies, and nebulae form a celestial tapestry that inspires wonder and curiosity about our place in the universe.",
   "A journey of a thousand miles begins with a single step. This ancient proverb reminds us that every great achievement starts with a small, manageable action.",
-  "Music is a universal language that transcends cultural boundaries. It has the power to evoke emotions, tell stories, and bring people together from all walks of life."
+  "Music is a universal language that transcends cultural boundaries. It has the power to evoke emotions, tell stories, and bring people together from all walks of life.",
+  "The world of literature is a rich and diverse landscape, filled with timeless classics and contemporary masterpieces that reflect the human experience across different cultures and eras.",
+  "Cybersecurity is an increasingly important field in our digital age. Protecting sensitive information from unauthorized access and malicious attacks is a constant challenge for businesses and individuals alike."
 ];
 
 // This function is no longer the primary source but can be a fallback or used for seeding.

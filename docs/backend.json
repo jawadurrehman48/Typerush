@@ -111,6 +111,86 @@
         "accuracy",
         "timestamp"
       ]
+    },
+    "Race": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Race",
+      "type": "object",
+      "description": "Represents a multiplayer race session.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Race entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the race."
+        },
+        "host": {
+          "type": "string",
+          "description": "The username of the user who created the race."
+        },
+        "status": {
+          "type": "string",
+          "description": "The current status of the race (e.g., 'waiting', 'running', 'finished').",
+          "enum": ["waiting", "running", "finished"]
+        },
+        "paragraphText": {
+          "type": "string",
+          "description": "The text snippet used for the race."
+        },
+        "startTime": {
+          "type": ["string", "null"],
+          "description": "The server timestamp when the race started.",
+          "format": "date-time"
+        },
+        "winnerId": {
+          "type": ["string", "null"],
+          "description": "The userId of the player who won the race."
+        },
+        "playerCount": {
+          "type": "number",
+          "description": "The number of players currently in the race."
+        }
+      },
+      "required": ["id", "name", "host", "status", "paragraphText", "playerCount"]
+    },
+    "Player": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Player",
+      "type": "object",
+      "description": "Represents a player's state within a specific race.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The player's user ID."
+        },
+        "username": {
+          "type": "string",
+          "description": "The player's username."
+        },
+        "photoURL": {
+          "type": ["string", "null"],
+          "description": "URL of the player's profile picture."
+        },
+        "progress": {
+          "type": "number",
+          "description": "The player's typing progress as a percentage (0-100)."
+        },
+        "wpm": {
+          "type": "number",
+          "description": "The player's current typing speed (words per minute)."
+        },
+        "accuracy": {
+          "type": "number",
+          "description": "The player's typing accuracy percentage."
+        },
+        "finishedTime": {
+          "type": ["number", "null"],
+          "description": "The time in seconds it took the player to finish the race."
+        }
+      },
+      "required": ["id", "username", "progress", "wpm", "accuracy"]
     }
   },
   "auth": {
@@ -171,10 +251,44 @@
             }
           ]
         }
+      },
+       {
+        "path": "/races/{raceId}",
+        "definition": {
+          "entityName": "Race",
+          "schema": {
+            "$ref": "#/backend/entities/Race"
+          },
+          "description": "Stores documents for multiplayer races. Publicly readable, with write access controlled by ownership and race status.",
+          "params": [
+            {
+              "name": "raceId",
+              "description": "The unique identifier for the race."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/races/{raceId}/players/{userId}",
+        "definition": {
+          "entityName": "Player",
+          "schema": {
+            "$ref": "#/backend/entities/Player"
+          },
+          "description": "Stores player-specific data within a race. Only the player themselves can create or update their own document.",
+          "params": [
+            {
+              "name": "raceId",
+              "description": "The ID of the race the player is in."
+            },
+            {
+              "name": "userId",
+              "description": "The user ID of the player."
+            }
+          ]
+        }
       }
     ],
     "reasoning": "The Firestore data structure is designed to support user authentication (email/password, guest), profile storage, leaderboard functionality, and game statistics tracking in the TypeRush application. The structure prioritizes authorization independence and clear security rules. User profiles are stored in a private collection `/users/{userId}`, ensuring only the authenticated user can access their own profile. A subcollection `/users/{userId}/games` stores a user's individual game history. Leaderboard entries are stored in a global collection `/leaderboard`, allowing efficient querying and display of top scores. The `username` is denormalized into the `LeaderboardEntry` documents to avoid needing to perform a `get()` operation from the `users` collection in security rules to ensure that the user still has that username. This is critical for atomic updates. All reads on the `leaderboard` collection can be granted if the `username` matches the user and the `userId` is valid."
   }
 }
-
-    

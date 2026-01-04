@@ -28,7 +28,7 @@ service cloud.firestore {
       let data = request.resource.data;
       return data.id == userId
              && data.email == request.auth.token.email
-             && data.username == request.auth.token.name
+             && data.username is string && data.username.size() > 0
              && data.highestWPM == 0
              && data.gamesPlayed == 0;
     }

@@ -3,18 +3,10 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { getRandomParagraph } from '@/lib/paragraphs';
+import { getRandomParagraph as getRandomParagraphLocal } from '@/lib/words';
 import { cn } from '@/lib/utils';
 import { RefreshCw, Zap, Target } from 'lucide-react';
 import Link from 'next/link';
-import { useFirestore, useUser } from '@/firebase';
-import {
-  writeBatch,
-  doc,
-  serverTimestamp,
-  runTransaction,
-  collection,
-} from 'firebase/firestore';
 
 type GameStatus = 'waiting' | 'running' | 'finished';
 
@@ -25,15 +17,10 @@ const TypingTest = () => {
   const [startTime, setStartTime] = useState<number | null>(null);
   const [endTime, setEndTime] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const firestore = useFirestore();
-  const { user } = useUser();
-  const [lastParagraphId, setLastParagraphId] = useState<string | null>(null);
 
-  const newGame = async () => {
-    if (!firestore) return;
-    const { paragraph, id } = await getRandomParagraph(firestore, lastParagraphId);
+  const newGame = () => {
+    const paragraph = getRandomParagraphLocal();
     setText(paragraph);
-    setLastParagraphId(id);
     setUserInput('');
     setStatus('waiting');
     setStartTime(null);
@@ -44,10 +31,8 @@ const TypingTest = () => {
   };
 
   useEffect(() => {
-    if (firestore) {
-      newGame();
-    }
-  }, [firestore]);
+    newGame();
+  }, []);
 
   const { wpm, accuracy } = useMemo(() => {
     if (status !== 'running' && status !== 'finished') return { wpm: 0, accuracy: 0 };
@@ -70,55 +55,6 @@ const TypingTest = () => {
       inputRef.current.focus();
     }
   }, [status]);
-  
-  const handleGameFinish = async (currentWpm: number, currentAccuracy: number) => {
-    if (!user || !firestore) return;
-
-    try {
-        await runTransaction(firestore, async (transaction) => {
-            const userRef = doc(firestore, 'users', user.uid);
-            const userDoc = await transaction.get(userRef);
-
-            if (!userDoc.exists()) {
-                throw "User document does not exist!";
-            }
-            
-            const gamesPlayed = (userDoc.data().gamesPlayed || 0) + 1;
-            const currentHighestWPM = userDoc.data().highestWPM || 0;
-            const newHighestWPM = Math.max(currentHighestWPM, currentWpm);
-
-            // Update user's main profile stats
-            transaction.update(userRef, {
-                gamesPlayed: gamesPlayed,
-                highestWPM: newHighestWPM
-            });
-
-            // Create a record for the game in a subcollection
-            const gameRef = doc(collection(firestore, 'users', user.uid, 'games'));
-            transaction.set(gameRef, {
-                score: currentWpm,
-                accuracy: currentAccuracy,
-                timestamp: serverTimestamp()
-            });
-
-            // Also create a leaderboard entry
-            if(currentWpm > 0) {
-              const leaderboardRef = doc(collection(firestore, "leaderboard"));
-              transaction.set(leaderboardRef, {
-                  userId: user.uid,
-                  username: user.displayName,
-                  photoURL: user.photoURL,
-                  score: currentWpm,
-                  accuracy: currentAccuracy,
-                  timestamp: serverTimestamp(),
-              });
-            }
-        });
-    } catch (e) {
-        console.error("Game finish transaction failed: ", e);
-    }
-  };
-
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -134,14 +70,6 @@ const TypingTest = () => {
       if (value.length === text.length) {
         setEndTime(Date.now());
         setStatus('finished');
-        
-        // Calculate final stats to pass to handler
-        const durationInMinutes = (Date.now() - (startTime ?? Date.now())) / 1000 / 60;
-        const correctChars = value.split('').filter((char, index) => char === text[index]).length;
-        const finalWpm = Math.round((correctChars / 5) / durationInMinutes);
-        const finalAccuracy = Math.round((correctChars / value.length) * 100);
-
-        handleGameFinish(finalWpm, finalAccuracy);
       }
     }
   };

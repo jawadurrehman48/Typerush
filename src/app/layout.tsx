@@ -3,7 +3,6 @@ import { Poppins } from 'next/font/google';
 import './globals.css';
 import { cn } from '@/lib/utils';
 import { Toaster } from '@/components/ui/toaster';
-import { FirebaseClientProvider } from '@/firebase';
 import { ThemeProvider } from '@/components/layout/theme-provider';
 
 const poppins = Poppins({
@@ -41,10 +40,8 @@ export default function RootLayout({
           defaultTheme="system"
           enableSystem
         >
-          <FirebaseClientProvider>
-            {children}
-            <Toaster />
-          </FirebaseClientProvider>
+          {children}
+          <Toaster />
         </ThemeProvider>
       </body>
     </html>

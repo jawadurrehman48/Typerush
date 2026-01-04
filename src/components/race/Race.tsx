@@ -1,19 +1,6 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import {
-  doc,
-  collection,
-  serverTimestamp,
-  updateDoc,
-} from 'firebase/firestore';
-import {
-  useFirestore,
-  useUser,
-  useDoc,
-  useCollection,
-  useMemoFirebase,
-} from '@/firebase';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -21,20 +8,11 @@ import { cn } from '@/lib/utils';
 import { LogOut, Trophy, Check, Copy, Crown } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import Image from 'next/image';
-import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { toast } from '@/hooks/use-toast';
+import { getRandomParagraph } from '@/lib/words';
 
 
 type RaceStatus = 'waiting' | 'running' | 'finished';
-
-type RaceData = {
-  name: string;
-  paragraphText: string;
-  host: string;
-  status: RaceStatus;
-  startTime: { toDate: () => Date } | null;
-  winnerId: string | null;
-};
 
 type PlayerData = {
   id: string;
@@ -46,84 +24,66 @@ type PlayerData = {
   photoURL?: string;
 };
 
+const STATIC_PLAYERS: PlayerData[] = [
+    { id: 'user-1', username: 'You', progress: 0, wpm: 0, finishedTime: null, accuracy: 0, photoURL: 'https://picsum.photos/seed/You/40/40' },
+    { id: 'user-2', username: 'Rival-1', progress: 0, wpm: 0, finishedTime: null, accuracy: 0, photoURL: 'https://picsum.photos/seed/Rival-1/40/40' },
+    { id: 'user-3', username: 'Rival-2', progress: 0, wpm: 0, finishedTime: null, accuracy: 0, photoURL: 'https://picsum.photos/seed/Rival-2/40/40' },
+];
+
 type RaceProps = {
   raceId: string;
   onLeave: () => void;
 };
 
 const Race = ({ raceId, onLeave }: RaceProps) => {
-  const firestore = useFirestore();
-  const { user } = useUser();
-
   const [copied, setCopied] = useState(false);
 
-  const raceRef = useMemoFirebase(
-    () => (firestore ? doc(firestore, 'races', raceId) : null),
-    [firestore, raceId]
-  );
-
-  const playersRef = useMemoFirebase(
-    () => (firestore ? collection(firestore, 'races', raceId, 'players') : null),
-    [firestore, raceId]
-  );
-
-  const { data: raceData, isLoading: isRaceLoading } = useDoc<RaceData>(raceRef);
-  const { data: playersData, isLoading: arePlayersLoading } = useCollection<PlayerData>(playersRef);
-
-  const localPlayerRef = useMemoFirebase(
-    () =>
-      user && firestore
-        ? doc(firestore, 'races', raceId, 'players', user.uid)
-        : null,
-    [firestore, raceId, user]
-  );
+  const [playersData, setPlayersData] = useState<PlayerData[]>(STATIC_PLAYERS);
+  const [text, setText] = useState('');
+  const [status, setStatus] = useState<RaceStatus>('waiting');
+  const [startTime, setStartTime] = useState<number | null>(null);
+  const [winnerId, setWinnerId] = useState<string | null>(null);
 
   const [userInput, setUserInput] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const text = raceData?.paragraphText || '';
-  const status = raceData?.status || 'waiting';
-
-  const localPlayer = useMemo(
-    () => playersData?.find(p => p.id === user?.uid),
-    [playersData, user]
-  );
-
+  const localPlayer = playersData.find(p => p.id === 'user-1');
   const isFinished = !!localPlayer?.finishedTime;
+  const isHost = true; // For static demo
+
+  // Initialize race
+  useEffect(() => {
+    setText(getRandomParagraph());
+  }, []);
 
   /* ------------------ DERIVED DATA ------------------ */
 
   const sortedPlayers = useMemo(
     () =>
-      playersData
-        ? [...playersData].sort((a, b) => {
-            if (a.finishedTime && b.finishedTime) return a.finishedTime - b.finishedTime;
-            if (a.finishedTime) return -1;
-            if (b.finishedTime) return 1;
-            return b.progress - a.progress;
-          })
-        : [],
+      [...playersData].sort((a, b) => {
+        if (a.finishedTime && b.finishedTime) return a.finishedTime - b.finishedTime;
+        if (a.finishedTime) return -1;
+        if (b.finishedTime) return 1;
+        return b.progress - a.progress;
+      }),
     [playersData]
   );
 
   const winner = useMemo(
-    () => playersData?.find(p => p.id === raceData?.winnerId),
-    [playersData, raceData]
+    () => playersData.find(p => p.id === winnerId),
+    [playersData, winnerId]
   );
 
   const accuracy = useMemo(() => {
     if (!text || !userInput) return localPlayer?.accuracy ?? 0;
-    const correct = userInput
-      .split('')
-      .filter((char, i) => char === text[i]).length;
+    const correct = userInput.split('').filter((char, i) => char === text[i]).length;
     return Math.round((correct / userInput.length) * 100) || 0;
   }, [text, userInput, localPlayer]);
 
   const { wpm, progress } = useMemo(() => {
-    if (status !== 'running' || !raceData?.startTime || !text) return { wpm: localPlayer?.wpm ?? 0, progress: localPlayer?.progress ?? 0 };
+    if (status !== 'running' || !startTime || !text) return { wpm: localPlayer?.wpm ?? 0, progress: localPlayer?.progress ?? 0 };
 
-    const start = raceData.startTime.toDate().getTime();
-    const minutes = (Date.now() - start) / 1000 / 60;
+    const minutes = (Date.now() - startTime) / 1000 / 60;
     if (minutes <= 0) return { wpm: 0, progress: 0 };
 
     const wordsTyped = userInput.length / 5;
@@ -131,56 +91,64 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
 
     return {
       wpm: currentWpm,
-      progress: Math.min(
-        100,
-        Math.round((userInput.length / text.length) * 100)
-      ),
+      progress: Math.min(100, Math.round((userInput.length / text.length) * 100)),
     };
-  }, [userInput, text, raceData, status, localPlayer]);
-
-  const characters = useMemo(
-    () =>
-      text.split('').map((char, index) => {
-        let state: 'correct' | 'incorrect' | 'untyped' = 'untyped';
-        if (index < userInput.length) {
-          state = char === userInput[index] ? 'correct' : 'incorrect';
-        }
-        return { char, state };
-      }),
-    [text, userInput]
-  );
+  }, [userInput, text, startTime, status, localPlayer]);
 
   /* ------------------ EFFECTS ------------------ */
 
+    useEffect(() => {
+        if (status === 'running' && !isFinished) {
+            inputRef.current?.focus();
+        }
+    }, [status, isFinished]);
+
+
+  // Simulate other players
+  useEffect(() => {
+    if (status !== 'running') return;
+    
+    const interval = setInterval(() => {
+      setPlayersData(prevPlayers => 
+        prevPlayers.map(p => {
+          if (p.id === 'user-1' || p.finishedTime) return p;
+
+          const newProgress = p.progress + Math.random() * 5;
+          if (newProgress >= 100 && !p.finishedTime) {
+             const duration = (Date.now() - (startTime ?? Date.now())) / 1000;
+             if (!winnerId) setWinnerId(p.id);
+             return { ...p, progress: 100, finishedTime: duration, wpm: 80 + Math.floor(Math.random() * 20) };
+          }
+          
+          return {
+            ...p,
+            progress: Math.min(100, newProgress),
+            wpm: 80 + Math.floor(Math.random() * 20),
+          };
+        })
+      );
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [status, startTime, winnerId]);
+  
+  // Update local player progress
   useEffect(() => {
     if (status === 'running' && !isFinished) {
-      inputRef.current?.focus();
+        setPlayersData(prev => prev.map(p => p.id === 'user-1' ? {...p, progress, wpm, accuracy} : p));
     }
-  }, [status, isFinished]);
-  
-  useEffect(() => {
-    // Only update progress if the game is running and the player hasn't finished
-    if (status === 'running' && localPlayerRef && !isFinished && progress >= 0) {
-      const updatePayload = {
-        progress,
-        wpm,
-        accuracy
-      };
-      updateDocumentNonBlocking(localPlayerRef, updatePayload);
-    }
-  }, [status, localPlayerRef, isFinished, progress, wpm, accuracy]);
-
+  }, [progress, wpm, accuracy, status, isFinished]);
 
   /* ------------------ HANDLERS ------------------ */
 
   const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (isFinished || status !== 'running' || !localPlayerRef || !raceRef || !firestore || !raceData) return;
+    if (isFinished || status !== 'running') return;
 
     const value = e.target.value;
     setUserInput(value);
 
     if (value.length === text.length && text.length > 0) {
-      const start = raceData?.startTime?.toDate().getTime();
+      const start = startTime;
       if (!start) return;
 
       const duration = (Date.now() - start) / 1000; // in seconds
@@ -188,33 +156,25 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
       const finalWpm = Math.round((correctChars / 5) / (duration / 60));
       const finalAccuracy = Math.round((correctChars / value.length) * 100);
 
-      const finalPlayerUpdate = {
+      setPlayersData(prev => prev.map(p => p.id === 'user-1' ? {
+        ...p, 
         finishedTime: duration,
         progress: 100,
         wpm: finalWpm,
         accuracy: finalAccuracy,
-      };
-
-      await updateDoc(localPlayerRef, finalPlayerUpdate);
-
-      // Atomically set winner if not already set
-      if (raceData && !raceData.winnerId && user) {
-        // We use the non-blocking version because another user might be finishing at the same time
-        // The security rule is what actually enforces the atomic "first-write-wins"
-        updateDocumentNonBlocking(raceRef, {
-            winnerId: user.uid,
-            status: 'finished',
-        });
+      } : p));
+      
+      if (!winnerId) {
+        setWinnerId('user-1');
+        setStatus('finished');
       }
     }
   };
   
   const startGame = () => {
-    if (status === 'waiting' && raceData?.host === user?.displayName && raceRef) {
-      updateDocumentNonBlocking(raceRef, {
-        status: 'running',
-        startTime: serverTimestamp(),
-      });
+    if (status === 'waiting' && isHost) {
+      setStatus('running');
+      setStartTime(Date.now());
     }
   };
 
@@ -227,16 +187,8 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
 
   /* ------------------ RENDER LOGIC ------------------ */
 
-  if (isRaceLoading || arePlayersLoading) {
-    return (
-      <div className="flex h-48 items-center justify-center">
-        Setting up the race...
-      </div>
-    );
-  }
-
   // Final Results View
-  if (raceData?.winnerId) {
+  if (winnerId) {
     return (
         <Card className="w-full border-2 shadow-lg">
             <CardContent className="p-4 sm:p-6">
@@ -259,7 +211,7 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
                                 <span className="text-lg sm:text-xl font-bold w-5 sm:w-6 text-center">{index + 1}</span>
                                 <Image src={player.photoURL || `https://picsum.photos/seed/${player.username}/40/40`} alt={player.username} width={40} height={40} className="rounded-full w-8 h-8 sm:w-10 sm:h-10" />
                                 <div>
-                                    <p className="font-semibold text-sm sm:text-base">{player.username} {player.id === user?.uid && '(You)'}</p>
+                                    <p className="font-semibold text-sm sm:text-base">{player.username}</p>
                                     <p className="text-xs sm:text-sm text-muted-foreground">{player.finishedTime ? `${player.finishedTime.toFixed(2)}s` : 'DNF'}</p>
                                 </div>
                             </div>
@@ -292,7 +244,7 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
         <div className="mb-6 flex flex-col sm:flex-row items-start justify-between gap-4">
           <div className="flex flex-col">
             <h2 className="text-xl sm:text-2xl font-bold tracking-tighter text-primary">
-              {raceData?.name}
+              Demo Race
             </h2>
             <div className="flex items-center gap-1">
                 <p className="text-xs sm:text-sm font-mono text-muted-foreground">ID: {raceId}</p>
@@ -320,18 +272,15 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
               <div className="flex items-center justify-between text-sm">
                 <div className="flex items-center gap-2">
                   <Image
-                    src={
-                      player.photoURL ||
-                      `https://picsum.photos/seed/${player.username}/40/40`
-                    }
+                    src={player.photoURL || `https://picsum.photos/seed/${player.username}/40/40`}
                     alt={player.username}
                     width={24}
                     height={24}
                     className="rounded-full"
                   />
                   <span className="font-medium truncate max-w-[120px] sm:max-w-none">
-                    {player.id === raceData?.host && <Crown className="h-4 w-4 inline-block mr-1 text-yellow-500" />}
-                    {player.username} {player.id === user?.uid && '(You)'}
+                    {player.id === 'user-1' && <Crown className="h-4 w-4 inline-block mr-1 text-yellow-500" />}
+                    {player.username}
                   </span>
                   {player.finishedTime && (
                     <Badge variant="secondary" className="text-xs">Finished!</Badge>
@@ -362,23 +311,20 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
             spellCheck="false"
           />
 
-          {characters.map(({ char, state }, i) => (
+          {text.split('').map((char, i) => (
             <span
               key={i}
               className={cn({
-                'text-muted-foreground/70': state === 'untyped',
-                'text-primary': state === 'correct',
-                'text-destructive underline': state === 'incorrect',
-                relative:
-                  userInput.length === i && status === 'running' && !isFinished,
+                'text-muted-foreground/70': i >= userInput.length,
+                'text-primary': i < userInput.length && char === userInput[i],
+                'text-destructive underline': i < userInput.length && char !== userInput[i],
+                relative: userInput.length === i && status === 'running' && !isFinished,
               })}
             >
-              {userInput.length === i &&
-                status === 'running' &&
-                !isFinished && (
+              {userInput.length === i && status === 'running' && !isFinished && (
                   <span className="animate-ping absolute left-0 top-0 inline-flex h-full w-px bg-primary opacity-75"></span>
-                )}
-              {char === ' ' && state === 'incorrect' ? (
+              )}
+              {char === ' ' && i < userInput.length && char !== userInput[i] ? (
                 <span className="rounded-[2px] bg-destructive/20">&nbsp;</span>
               ) : (
                 char
@@ -388,7 +334,7 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
 
           {status === 'waiting' && (
             <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-background/80">
-              {raceData?.host === user?.displayName ? (
+              {isHost ? (
                 <Button onClick={startGame} size="lg">
                   Start Race
                 </Button>

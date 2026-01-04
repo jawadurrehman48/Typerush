@@ -12,19 +12,21 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import Header from '@/components/layout/Header';
-import { Skeleton } from '@/components/ui/skeleton';
 import { useMemo } from 'react';
-import { collection, query, orderBy, limit } from 'firebase/firestore';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 
-type LeaderboardEntry = {
-  id: string;
-  username: string;
-  score: number;
-  accuracy: number;
-  timestamp: { toDate: () => Date };
-  photoURL?: string | null;
-};
+const STATIC_LEADERBOARD_DATA = [
+  { id: '1', username: 'SpeedyKeys', score: 125, accuracy: 99, timestamp: new Date('2024-07-21T10:00:00Z'), photoURL: 'https://picsum.photos/seed/SpeedyKeys/40/40' },
+  { id: '2', username: 'TypingPro', score: 118, accuracy: 97, timestamp: new Date('2024-07-20T11:30:00Z'), photoURL: 'https://picsum.photos/seed/TypingPro/40/40' },
+  { id: '3', username: 'KeyboardWizard', score: 112, accuracy: 98, timestamp: new Date('2024-07-21T09:00:00Z'), photoURL: 'https://picsum.photos/seed/KeyboardWizard/40/40' },
+  { id: '4', username: 'FastFingers', score: 109, accuracy: 100, timestamp: new Date('2024-07-19T14:00:00Z'), photoURL: 'https://picsum.photos/seed/FastFingers/40/40' },
+  { id: '5', username: 'WordMaster', score: 105, accuracy: 96, timestamp: new Date('2024-07-20T16:45:00Z'), photoURL: 'https://picsum.photos/seed/WordMaster/40/40' },
+  { id: '6', username: 'KeySmasher', score: 101, accuracy: 94, timestamp: new Date('2024-07-18T11:00:00Z'), photoURL: 'https://picsum.photos/seed/KeySmasher/40/40' },
+  { id: '7', username: 'QwertyNinja', score: 98, accuracy: 99, timestamp: new Date('2024-07-21T15:20:00Z'), photoURL: 'https://picsum.photos/seed/QwertyNinja/40/40' },
+  { id: '8', username: 'CodeRacer', score: 95, accuracy: 98, timestamp: new Date('2024-07-19T18:10:00Z'), photoURL: 'https://picsum.photos/seed/CodeRacer/40/40' },
+  { id: '9', username: 'LetterStorm', score: 92, accuracy: 95, timestamp: new Date('2024-07-20T08:30:00Z'), photoURL: 'https://picsum.photos/seed/LetterStorm/40/40' },
+  { id: '10', username: 'TypeNinja', score: 90, accuracy: 97, timestamp: new Date('2024-07-21T12:00:00Z'), photoURL: 'https://picsum.photos/seed/TypeNinja/40/40' },
+];
+
 
 const rankColor = (rank: number) => {
   if (rank === 1) return 'bg-yellow-400/80 text-yellow-900 border-yellow-400';
@@ -34,26 +36,13 @@ const rankColor = (rank: number) => {
 };
 
 export default function LeaderboardPage() {
-  const firestore = useFirestore();
-
-  const leaderboardQuery = useMemoFirebase(
-    () =>
-      firestore
-        ? query(collection(firestore, 'leaderboard'), orderBy('score', 'desc'), limit(10))
-        : null,
-    [firestore]
-  );
-  
-  const { data: leaderboardData, isLoading } = useCollection<LeaderboardEntry>(leaderboardQuery);
-
   const formattedData = useMemo(() => {
-    return leaderboardData?.map((entry, index) => ({
+    return STATIC_LEADERBOARD_DATA?.map((entry, index) => ({
       ...entry,
       rank: index + 1,
-      date: entry.timestamp?.toDate().toLocaleDateString() ?? 'N/A',
+      date: entry.timestamp.toLocaleDateString(),
     })) ?? [];
-  }, [leaderboardData]);
-
+  }, []);
 
   return (
     <>
@@ -79,20 +68,6 @@ export default function LeaderboardPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isLoading && Array.from({length: 10}).map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell className='text-center'><Skeleton className="h-8 w-8 rounded-full mx-auto" /></TableCell>
-                    <TableCell>
-                      <div className='flex items-center gap-3'>
-                        <Skeleton className="h-10 w-10 rounded-full" />
-                        <Skeleton className="h-6 w-24" />
-                      </div>
-                    </TableCell>
-                    <TableCell className='text-right'><Skeleton className="h-6 w-8 ml-auto" /></TableCell>
-                    <TableCell className='text-right'><Skeleton className="h-6 w-8 ml-auto" /></TableCell>
-                    <TableCell className='text-right hidden sm:table-cell'><Skeleton className="h-6 w-24 ml-auto" /></TableCell>
-                  </TableRow>
-                ))}
                 {formattedData.map((entry) => (
                   <TableRow key={entry.id}>
                     <TableCell className="text-center">
@@ -118,7 +93,7 @@ export default function LeaderboardPage() {
                     <TableCell className="text-right text-muted-foreground hidden sm:table-cell">{entry.date}</TableCell>
                   </TableRow>
                 ))}
-                {!isLoading && formattedData.length === 0 && (
+                {formattedData.length === 0 && (
                   <TableRow>
                       <TableCell colSpan={5} className="h-24 text-center">
                           No scores on the leaderboard yet. Be the first!

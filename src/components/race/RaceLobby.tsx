@@ -1,18 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  doc,
-  runTransaction,
-  getDoc,
-  collection,
-} from 'firebase/firestore';
-import { useFirestore, useUser, useUserProfile } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { getRandomParagraph } from '@/lib/paragraphs';
 import { toast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Swords, LogIn } from 'lucide-react';
@@ -21,27 +13,7 @@ type RaceLobbyProps = {
   onJoinRace: (raceId: string) => void;
 };
 
-// Generates a unique 4-digit race ID.
-const generateUniqueRaceId = async (firestore: any): Promise<string> => {
-    let raceId;
-    let isUnique = false;
-    while (!isUnique) {
-        raceId = Math.floor(1000 + Math.random() * 9000).toString();
-        const raceDocRef = doc(firestore, 'races', raceId);
-        const docSnap = await getDoc(raceDocRef);
-        if (!docSnap.exists()) {
-            isUnique = true;
-        }
-    }
-    return raceId!;
-};
-
-
 export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
-  const firestore = useFirestore();
-  const { user } = useUser();
-  const { data: userProfile } = useUserProfile();
-  
   const [raceName, setRaceName] = useState('');
   const [joinRaceId, setJoinRaceId] = useState('');
   
@@ -49,121 +21,39 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
   const [isJoining, setIsJoining] = useState(false);
 
   const createRace = async () => {
-    if (!user || !userProfile || !raceName.trim() || !firestore) {
+    if (!raceName.trim()) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "You must be logged in and provide a race name.",
+        description: "Please provide a race name.",
       });
       return;
     }
     
     setIsCreating(true);
+    await new Promise(resolve => setTimeout(resolve, 500)); // Simulate async operation
+    
+    const newRaceId = Math.floor(1000 + Math.random() * 9000).toString();
+    onJoinRace(newRaceId);
 
-    try {
-      const { paragraph } = await getRandomParagraph(firestore);
-      const newRaceId = await generateUniqueRaceId(firestore);
-      
-      const raceDocRef = doc(firestore, 'races', newRaceId);
-      const playerDocRef = doc(firestore, 'races', newRaceId, 'players', user.uid);
-
-      await runTransaction(firestore, async (transaction) => {
-        const newRace = {
-          id: newRaceId,
-          name: raceName.trim(),
-          host: userProfile.username,
-          paragraphText: paragraph,
-          status: 'waiting',
-          startTime: null,
-          winnerId: null,
-          playerCount: 1, // Start with 1 player (the host)
-        };
-
-        const playerData = {
-          id: user.uid,
-          username: userProfile.username,
-          progress: 0,
-          wpm: 0,
-          accuracy: 0,
-          finishedTime: null,
-          photoURL: userProfile.photoURL ?? null
-        };
-        
-        transaction.set(raceDocRef, newRace);
-        transaction.set(playerDocRef, playerData);
-      });
-      
-      onJoinRace(newRaceId); // Automatically join the race
-
-    } catch (error: any) {
-       toast({
-        variant: "destructive",
-        title: "Failed to create race",
-        description: error.message || "Please try again later.",
-      });
-    } finally {
-      setIsCreating(false);
-    }
+    setIsCreating(false);
   };
 
-  const joinRace = async (idToJoin?: string) => {
-    const finalRaceId = (idToJoin || joinRaceId).trim();
-    if (!finalRaceId || !user || !userProfile || !firestore) {
+  const joinRace = async () => {
+    if (!joinRaceId.trim()) {
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Race ID is required and you must be logged in.',
+        description: 'Race ID is required.',
       });
       return;
     }
     setIsJoining(true);
-  
-    try {
-      const raceDocRef = doc(firestore, 'races', finalRaceId);
-  
-      await runTransaction(firestore, async (transaction) => {
-        const raceSnap = await transaction.get(raceDocRef);
-  
-        if (!raceSnap.exists()) {
-          throw new Error('Race not found. Please check the ID and try again.');
-        }
+    await new Promise(resolve => setTimeout(resolve, 500)); // Simulate async operation
 
-        const raceData = raceSnap.data();
-        if (raceData.status !== 'waiting') {
-            throw new Error('This race has already started or is finished.');
-        }
-
-        const playerDocRef = doc(firestore, 'races', finalRaceId, 'players', user.uid);
-        const playerSnap = await transaction.get(playerDocRef);
-
-        if (!playerSnap.exists()) {
-          const playerData = {
-            id: user.uid,
-            username: userProfile.username,
-            progress: 0,
-            wpm: 0,
-            accuracy: 0,
-            finishedTime: null,
-            photoURL: userProfile.photoURL ?? null
-          };
-          transaction.set(playerDocRef, playerData);
-    
-          const currentCount = raceData.playerCount || 0;
-          transaction.update(raceDocRef, { playerCount: currentCount + 1 });
-        }
-      });
+    onJoinRace(joinRaceId.trim());
   
-      onJoinRace(finalRaceId);
-  
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Failed to join race',
-        description: error.message || 'Please check the ID and try again.',
-      });
-    } finally {
-      setIsJoining(false);
-    }
+    setIsJoining(false);
   };
 
   return (
@@ -194,7 +84,7 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
                   disabled={isCreating}
                 />
               </div>
-              <Button onClick={createRace} disabled={isCreating || !userProfile} className="w-full">
+              <Button onClick={createRace} disabled={isCreating} className="w-full">
                 {isCreating ? "Creating..." : "Create & Join Race"}
               </Button>
             </div>
@@ -215,7 +105,7 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
                     disabled={isJoining}
                     />
                 </div>
-                <Button onClick={() => joinRace()} disabled={isJoining || !userProfile} className="w-full">
+                <Button onClick={() => joinRace()} disabled={isJoining} className="w-full">
                     {isJoining ? "Joining..." : "Join Race"}
                 </Button>
             </div>

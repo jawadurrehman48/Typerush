@@ -27,7 +27,7 @@ export default function RacePage() {
                 Race against others
               </h1>
               <p className="mb-8 text-center text-lg text-muted-foreground md:text-xl sm:mb-12">
-                Create a private race and challenge your friends, or join a race by ID.
+                Create a private race and challenge your friends.
               </p>
               <RaceLobby key={lobbyKey} onJoinRace={setRaceId} />
             </>

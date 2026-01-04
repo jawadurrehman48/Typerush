@@ -1,116 +1,43 @@
-/**
- * This ruleset enforces a strict security model for the TypeRush application,
- * prioritizing user data privacy while enabling public features like a leaderboard.
- *
- * Core Philosophy:
- * The security model is built on a user-ownership principle. All private user data
- * is stored within a path that includes the user's unique ID (`userId`), making it
- * programmatically impossible for one user to access another's private information.
- *
- * Data Structure:
- * - /users/{userId}: A top-level collection storing private UserProfile documents.
- * - /users/{userId}/game_history/{gameId}: A subcollection containing a user's
- *   private game results. Access is inherited from the parent user document.
- * - /leaderboard/{entryId}: A separate top-level collection for public high scores.
- *   This collection is publicly readable but writes are restricted to the document owner.
- *
- * Key Security Decisions:
- * - User Enumeration is Disallowed: Listing the top-level `/users` collection is
- *   explicitly forbidden to protect user privacy and prevent data scraping.
- * - Public Read, Private Write: The `/leaderboard` collection is readable by anyone
- *   (including unauthenticated users) to display high scores, but only the user who
- *   owns a score can create, update, or delete it.
- * - Default Deny: Any operation not explicitly granted by a rule is denied.
- *
- * Denormalization for Authorization:
- * To ensure fast and secure write operations on the public leaderboard, each
- * `/leaderboard/{entryId}` document contains a denormalized `userId` field.
- * This allows the rules to verify ownership directly from the document itself,
- * avoiding slow and costly `get()` calls to other collections.
- *
- * Structural Segregation:
- * Private user data (profiles, game history) is structurally separated from public
- * data (leaderboard). This clear separation simplifies security rules and makes
- * list operations on the public collection safe and performant.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // -------------------------------------------------------------------------
-    // Helper Functions
-    // -------------------------------------------------------------------------
+    //----------------------------------------------------------------//
+    //                        Helper Functions                        //
+    //----------------------------------------------------------------//
 
-    /**
-     * Checks if the user is authenticated.
-     */
     function isSignedIn() {
       return request.auth != null;
     }
 
-    /**
-     * Checks if the authenticated user's UID matches the provided userId.
-     * This is the foundation of the user-ownership model.
-     */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    /**
-     * Verifies ownership for an existing document. Used for update/delete.
-     * Combines an ownership check with an existence check for robustness.
-     */
-    function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
+    function isExistingOwner(ownerId) {
+      return isOwner(ownerId) && resource != null;
     }
 
-    // -------------------------------------------------------------------------
-    // Collection Rules
-    // -------------------------------------------------------------------------
+    function isCreatingValidUserProfile(userId) {
+      let data = request.resource.data;
+      return isOwner(userId)
+             && data.id == userId
+             && data.email == request.auth.token.email
+             && data.username == request.resource.data.username
+             && data.highestWPM == 0
+             && data.gamesPlayed == 0;
+    }
 
-    /**
-     * @description Controls access to a user's private profile document.
-     * @path /users/{userId}
-     * @allow A signed-in user (auth.uid: 'user123') can create, read, update, or delete their own profile at /users/user123.
-     * @deny An anonymous user cannot access any profile. User 'user456' cannot read or write to /users/user123.
-     * @principle Restricts access to a user's own data tree and prevents user enumeration.
-     */
+    //----------------------------------------------------------------//
+    //                       Collection Rules                         //
+    //----------------------------------------------------------------//
+
     match /users/{userId} {
       allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingOwner(userId);
+      allow list: if false; // Users should not be able to list all other users
+      allow create: if isCreatingValidUserProfile(userId);
+      allow update, delete: if isOwner(userId);
 
-      /**
-       * @description Controls access to a user's private game history.
-       * @path /users/{userId}/game_history/{gameHistoryId}
-       * @allow User 'user123' can create, read, list, update, and delete game history documents within /users/user123/game_history.
-       * @deny User 'user456' cannot access anything within /users/user123/game_history.
-       * @principle Enforces inherited ownership from the parent document path.
-       */
-      match /game_history/{gameHistoryId} {
-        allow get: if isOwner(userId);
-        allow list: if isOwner(userId);
-        allow create: if isOwner(userId) && request.resource.data.userId == userId;
-        allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
-        allow delete: if isExistingOwner(userId);
-      }
-    }
-
-    /**
-     * @description Controls access to the public leaderboard.
-     * @path /leaderboard/{leaderboardEntryId}
-     * @allow Any user (authenticated or not) can read the full leaderboard. User 'user123' (create) their own entry, setting `userId` to 'user123'.
-     * @deny User 'user456' cannot (update) or (delete) a leaderboard entry where the `userId` field is 'user123'.
-     * @principle Implements a "Public Read, Owner-Only Write" model using a denormalized ownership field.
-     */
-    match /leaderboard/{leaderboardEntryId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isExistingOwner(resource.data.userId) && request.resource.data.userId == resource.data.userId;
-      allow delete: if isExistingOwner(resource.data.userId);
     }
   }
 }

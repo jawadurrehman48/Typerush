@@ -4,6 +4,7 @@ import './globals.css';
 import { cn } from '@/lib/utils';
 import { Toaster } from '@/components/ui/toaster';
 import { ThemeProvider } from '@/components/layout/theme-provider';
+import { FirebaseClientProvider } from '@/firebase';
 
 const poppins = Poppins({
   subsets: ['latin'],
@@ -40,7 +41,9 @@ export default function RootLayout({
           defaultTheme="system"
           enableSystem
         >
-          {children}
+          <FirebaseClientProvider>
+            {children}
+          </FirebaseClientProvider>
           <Toaster />
         </ThemeProvider>
       </body>

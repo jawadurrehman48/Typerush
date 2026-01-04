@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -80,7 +81,7 @@ export default function SettingsPage() {
             await updateProfile(auth.currentUser, authUpdates);
         }
 
-        // Force refresh of the ID token to get fresh claims in security rules
+        // Force refresh of the ID token to get fresh claims for security rules
         await auth.currentUser.getIdToken(true);
       }
 

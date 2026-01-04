@@ -55,7 +55,7 @@ export function UserSignUpForm({ className, ...props }: UserSignUpFormProps) {
       if (user) {
         const placeholderAvatar = `https://picsum.photos/seed/${data.username}/200/200`;
         
-        // Step 1: Update the Auth profile first. This is crucial.
+        // Step 1: Update the Auth profile first. This is crucial as security rules may depend on it.
         await updateProfile(user, {
             displayName: data.username,
             photoURL: placeholderAvatar,
@@ -70,11 +70,11 @@ export function UserSignUpForm({ className, ...props }: UserSignUpFormProps) {
           photoURL: placeholderAvatar,
           highestWPM: 0,
           gamesPlayed: 0,
-          createdAt: new Date().toISOString(),
         };
 
         const userDocRef = doc(firestore, "users", user.uid);
-        // The security rule for `create` will now pass because `user.displayName` is set.
+        // The security rule for `create` will now pass because `request.auth.token.name` will be available
+        // if the rule needs it, and the `isCreatingValidUserProfile` function has all the data it needs.
         await setDoc(userDocRef, userProfile);
 
         toast({

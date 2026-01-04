@@ -82,7 +82,12 @@ service cloud.firestore {
      * This ensures the document's internal `id` matches the document's path ID (`userId`).
      */
     function isCreatingValidUserProfile(userId) {
-      return request.resource.data.id == userId;
+      let data = request.resource.data;
+      return data.id == userId
+             && data.email == request.auth.token.email
+             && data.username == request.auth.token.name
+             && data.highestWPM == 0
+             && data.gamesPlayed == 0;
     }
 
     /**
@@ -96,7 +101,7 @@ service cloud.firestore {
         // The internal `id` field must not be changed after creation.
         let isIdUnchanged = incomingData.id == existingData.id;
         // Allow only specific fields to be updated.
-        let allowedFieldsUpdated = incomingData.diff(existingData).affectedKeys().hasOnly(['gamesPlayed', 'highestWPM', 'username', 'photoURL']);
+        let allowedFieldsUpdated = incomingData.diff(existingData).affectedKeys().hasOnly(['gamesPlayed', 'highestWPM', 'username', 'photoURL', 'fullName']);
 
         return isIdUnchanged && allowedFieldsUpdated;
     }
@@ -140,13 +145,28 @@ service cloud.firestore {
     }
 
     /**
-     * Validates a new Race document.
-     * Ensures the `host` field is set to the creator's username and playerCount is 1.
+     * Validates a new Race document and the associated Player document creation.
+     * This is designed to work within a transaction where both are created together.
      */
-    function isCreatingValidRace() {
-      return request.resource.data.host == request.auth.token.name
-          && request.resource.data.status == 'waiting'
-          && request.resource.data.playerCount == 1;
+    function isCreatingValidRace(raceId) {
+        let raceData = request.resource.data;
+        let auth = request.auth;
+        let playerPath = /databases/$(database)/documents/races/$(raceId)/players/$(auth.uid);
+        let incomingPlayerData = request.writeBatch[0].data; // Assumes first write in batch is player
+
+        let isValidRace = raceData.host == auth.token.name
+            && raceData.status == 'waiting'
+            && raceData.playerCount == 1;
+
+        let isValidPlayer = incomingPlayerData.id == auth.uid
+            && incomingPlayerData.username == auth.token.name
+            && incomingPlayerData.progress == 0
+            && incomingPlayerData.wpm == 0
+            && incomingPlayerData.accuracy == 0
+            && incomingPlayerData.finishedTime == null;
+
+        // Check if the transaction is only for creating the race and the player doc
+        return isValidRace && isValidPlayer && request.writeBatch.size() == 2;
     }
 
     /**
@@ -238,7 +258,7 @@ service cloud.firestore {
     match /races/{raceId} {
       allow get: if true;
       allow list: if true;
-      allow create: if isSignedIn() && isCreatingValidRace();
+      allow create: if isSignedIn() && isCreatingValidRace(raceId);
       allow update: if isUpdatingValidRace(raceId);
       allow delete: if isRaceHost(raceId);
 
@@ -268,3 +288,5 @@ service cloud.firestore {
     }
   }
 }
+
+    

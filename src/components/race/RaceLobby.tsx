@@ -9,7 +9,7 @@ import { toast } from '@/hooks/use-toast';
 import { Swords } from 'lucide-react';
 
 type RaceLobbyProps = {
-  onJoinRace: (raceId: string) => void;
+  onJoinRace: (raceId: string, raceName: string) => void;
 };
 
 export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
@@ -31,7 +31,7 @@ export default function RaceLobby({ onJoinRace }: RaceLobbyProps) {
     await new Promise(resolve => setTimeout(resolve, 500)); // Simulate async operation
     
     const newRaceId = Math.floor(1000 + Math.random() * 9000).toString();
-    onJoinRace(newRaceId);
+    onJoinRace(newRaceId, raceName);
 
     setIsCreating(false);
   };

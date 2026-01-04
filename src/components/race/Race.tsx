@@ -10,6 +10,8 @@ import { Badge } from '../ui/badge';
 import Image from 'next/image';
 import { toast } from '@/hooks/use-toast';
 import { getRandomParagraph } from '@/lib/words';
+import { useUser } from '@/firebase';
+import { useUserProfile } from '@/firebase/auth/use-user-profile';
 
 
 type RaceStatus = 'waiting' | 'running' | 'finished';
@@ -24,21 +26,24 @@ type PlayerData = {
   photoURL?: string;
 };
 
-const STATIC_PLAYERS: PlayerData[] = [
-    { id: 'user-1', username: 'You', progress: 0, wpm: 0, finishedTime: null, accuracy: 0, photoURL: 'https://picsum.photos/seed/You/40/40' },
-    { id: 'user-2', username: 'Rival-1', progress: 0, wpm: 0, finishedTime: null, accuracy: 0, photoURL: 'https://picsum.photos/seed/Rival-1/40/40' },
-    { id: 'user-3', username: 'Rival-2', progress: 0, wpm: 0, finishedTime: null, accuracy: 0, photoURL: 'https://picsum.photos/seed/Rival-2/40/40' },
+const STATIC_PLAYERS: Omit<PlayerData, 'id' | 'username' | 'photoURL'>[] = [
+    { progress: 0, wpm: 0, finishedTime: null, accuracy: 0 },
+    { progress: 0, wpm: 0, finishedTime: null, accuracy: 0 },
 ];
 
 type RaceProps = {
   raceId: string;
+  raceName: string;
   onLeave: () => void;
 };
 
-const Race = ({ raceId, onLeave }: RaceProps) => {
+const Race = ({ raceId, raceName, onLeave }: RaceProps) => {
   const [copied, setCopied] = useState(false);
 
-  const [playersData, setPlayersData] = useState<PlayerData[]>(STATIC_PLAYERS);
+  const { user } = useUser();
+  const { userProfile } = useUserProfile();
+
+  const [playersData, setPlayersData] = useState<PlayerData[]>([]);
   const [text, setText] = useState('');
   const [status, setStatus] = useState<RaceStatus>('waiting');
   const [startTime, setStartTime] = useState<number | null>(null);
@@ -47,9 +52,29 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
   const [userInput, setUserInput] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const localPlayer = playersData.find(p => p.id === 'user-1');
+  const localPlayer = playersData.find(p => p.id === user?.uid);
   const isFinished = !!localPlayer?.finishedTime;
   const isHost = true; // For static demo
+
+  useEffect(() => {
+    if (user && userProfile) {
+      const initialPlayers: PlayerData[] = [
+        {
+          id: user.uid,
+          username: userProfile.username ?? 'You',
+          photoURL: userProfile.photoURL ?? undefined,
+          ...STATIC_PLAYERS[0]
+        },
+        ...STATIC_PLAYERS.slice(1).map((p, i) => ({
+          ...p,
+          id: `user-${i + 2}`,
+          username: `Rival-${i + 1}`,
+          photoURL: `https://picsum.photos/seed/Rival-${i + 1}/40/40`,
+        }))
+      ];
+      setPlayersData(initialPlayers);
+    }
+  }, [user, userProfile]);
 
   // Initialize race
   useEffect(() => {
@@ -106,12 +131,12 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
 
   // Simulate other players
   useEffect(() => {
-    if (status !== 'running') return;
+    if (status !== 'running' || !user) return;
     
     const interval = setInterval(() => {
       setPlayersData(prevPlayers => 
         prevPlayers.map(p => {
-          if (p.id === 'user-1' || p.finishedTime) return p;
+          if (p.id === user.uid || p.finishedTime) return p;
 
           const newProgress = p.progress + Math.random() * 5;
           if (newProgress >= 100 && !p.finishedTime) {
@@ -130,19 +155,19 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [status, startTime, winnerId]);
+  }, [status, startTime, winnerId, user]);
   
   // Update local player progress
   useEffect(() => {
-    if (status === 'running' && !isFinished) {
-        setPlayersData(prev => prev.map(p => p.id === 'user-1' ? {...p, progress, wpm, accuracy} : p));
+    if (status === 'running' && !isFinished && user) {
+        setPlayersData(prev => prev.map(p => p.id === user.uid ? {...p, progress, wpm, accuracy} : p));
     }
-  }, [progress, wpm, accuracy, status, isFinished]);
+  }, [progress, wpm, accuracy, status, isFinished, user]);
 
   /* ------------------ HANDLERS ------------------ */
 
   const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (isFinished || status !== 'running') return;
+    if (isFinished || status !== 'running' || !user) return;
 
     const value = e.target.value;
     setUserInput(value);
@@ -156,7 +181,7 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
       const finalWpm = Math.round((correctChars / 5) / (duration / 60));
       const finalAccuracy = Math.round((correctChars / value.length) * 100);
 
-      setPlayersData(prev => prev.map(p => p.id === 'user-1' ? {
+      setPlayersData(prev => prev.map(p => p.id === user.uid ? {
         ...p, 
         finishedTime: duration,
         progress: 100,
@@ -165,7 +190,7 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
       } : p));
       
       if (!winnerId) {
-        setWinnerId('user-1');
+        setWinnerId(user.uid);
         setStatus('finished');
       }
     }
@@ -244,7 +269,7 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
         <div className="mb-6 flex flex-col sm:flex-row items-start justify-between gap-4">
           <div className="flex flex-col">
             <h2 className="text-xl sm:text-2xl font-bold tracking-tighter text-primary">
-              Demo Race
+              {raceName}
             </h2>
             <div className="flex items-center gap-1">
                 <p className="text-xs sm:text-sm font-mono text-muted-foreground">ID: {raceId}</p>
@@ -279,7 +304,7 @@ const Race = ({ raceId, onLeave }: RaceProps) => {
                     className="rounded-full"
                   />
                   <span className="font-medium truncate max-w-[120px] sm:max-w-none">
-                    {player.id === 'user-1' && <Crown className="h-4 w-4 inline-block mr-1 text-yellow-500" />}
+                    {player.id === user?.uid && <Crown className="h-4 w-4 inline-block mr-1 text-yellow-500" />}
                     {player.username}
                   </span>
                   {player.finishedTime && (

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Keyboard, Menu, X, User, LayoutDashboard, Settings, LogOut as LogOutIcon } from 'lucide-react';
+import { Keyboard, Menu, X, Settings, LogOut as LogOutIcon, LayoutDashboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePathname } from 'next/navigation';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
@@ -34,23 +34,26 @@ export default function Header() {
   const { userProfile } = useUserProfile();
 
   const handleLogout = async () => {
-    await signOut(auth);
+    if (auth) {
+      await signOut(auth);
+    }
   };
 
-  const navLinkClasses = (path: string) => 
+  const navLinkClasses = (path: string) =>
     cn(
       'transition-colors hover:text-foreground/80 text-lg sm:text-sm',
       pathname === path ? 'text-foreground' : 'text-foreground/60'
     );
 
   const getInitials = (name: string) => {
+    if (!name) return 'G';
     const names = name.split(' ');
     if (names.length > 1 && names[0] && names[1]) {
       return names[0][0] + names[1][0];
     }
     return name.substring(0, 2).toUpperCase();
-  }
-  
+  };
+
   const NavLinks = () => (
     <>
       <Link href="/game" className={navLinkClasses('/game')} onClick={() => setIsSheetOpen(false)}>
@@ -80,50 +83,48 @@ export default function Header() {
         </nav>
         <div className="flex flex-1 items-center justify-end gap-2 sm:gap-4">
           <ThemeToggle />
-            {user ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage src={userProfile?.photoURL ?? `https://picsum.photos/seed/${user.uid}/40/40`} alt={userProfile?.username ?? 'user'} />
-                      <AvatarFallback>{userProfile?.username ? getInitials(userProfile.username) : 'G'}</AvatarFallback>
-                    </Avatar>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56" align="end" forceMount>
-                  <DropdownMenuLabel className="font-normal">
-                    <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none">{userProfile?.username ?? 'Guest'}</p>
-                      <p className="text-xs leading-none text-muted-foreground">
-                        {user.email}
-                      </p>
-                    </div>
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <Link href="/settings">
-                      <Settings className="mr-2 h-4 w-4" />
-                      <span>Settings</span>
-                    </Link>
-                  </DropdownMenuItem>
-                   <DropdownMenuItem asChild>
-                     <Link href="/dashboard">
-                      <LayoutDashboard className="mr-2 h-4 w-4" />
-                      <span>Dashboard</span>
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleLogout} className="text-red-500 focus:text-red-500 focus:bg-red-500/10">
-                    <LogOutIcon className="mr-2 h-4 w-4" />
-                    <span>Log out</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : (
-               <Button asChild>
-                 <Link href="/">Login</Link>
-               </Button>
-            )}
+          {user ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={userProfile?.photoURL ?? undefined} alt={userProfile?.username ?? 'user'} />
+                    <AvatarFallback>{getInitials(userProfile?.username ?? '')}</AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56" align="end" forceMount>
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-sm font-medium leading-none">{userProfile?.username ?? 'Guest'}</p>
+                    <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href="/settings">
+                    <Settings className="mr-2 h-4 w-4" />
+                    <span>Settings</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard">
+                    <LayoutDashboard className="mr-2 h-4 w-4" />
+                    <span>Dashboard</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout} className="text-red-500 focus:text-red-500 focus:bg-red-500/10">
+                  <LogOutIcon className="mr-2 h-4 w-4" />
+                  <span>Log out</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Button asChild>
+              <Link href="/">Login</Link>
+            </Button>
+          )}
           <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="sm:hidden">
@@ -132,22 +133,22 @@ export default function Header() {
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="w-full max-w-xs sm:max-w-sm">
-                <div className="flex justify-between items-center py-2">
-                    <Link href="/game" className="flex items-center space-x-2" onClick={() => setIsSheetOpen(false)}>
-                        <Keyboard className="h-6 w-6 text-primary" />
-                        <span className="font-bold">TypeRush</span>
-                    </Link>
-                    <SheetClose asChild>
-                        <Button variant="ghost" size="icon">
-                            <X className="h-6 w-6" />
-                        </Button>
-                    </SheetClose>
-                </div>
-                <div className="flex flex-col h-full py-4">
-                    <nav className="flex flex-col gap-4 text-lg font-medium">
-                        <NavLinks />
-                    </nav>
-                </div>
+              <div className="flex justify-between items-center py-2">
+                <Link href="/game" className="flex items-center space-x-2" onClick={() => setIsSheetOpen(false)}>
+                  <Keyboard className="h-6 w-6 text-primary" />
+                  <span className="font-bold">TypeRush</span>
+                </Link>
+                <SheetClose asChild>
+                  <Button variant="ghost" size="icon">
+                    <X className="h-6 w-6" />
+                  </Button>
+                </SheetClose>
+              </div>
+              <div className="flex flex-col h-full py-4">
+                <nav className="flex flex-col gap-4 text-lg font-medium">
+                  <NavLinks />
+                </nav>
+              </div>
             </SheetContent>
           </Sheet>
         </div>

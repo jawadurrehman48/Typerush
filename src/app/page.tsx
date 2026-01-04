@@ -20,18 +20,8 @@ export default function LoginPage() {
   }, [user, isUserLoading, router])
 
   // While checking auth state, show a loader. This prevents the login form from flashing.
-  if (isUserLoading) {
+  if (isUserLoading || user) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="h-16 w-16 animate-spin rounded-full border-4 border-dashed border-primary"></div>
-      </div>
-    )
-  }
-  
-  // If the user is already logged in, they will be redirected. 
-  // We can show a loader or null while the redirect is in flight.
-  if(user) {
-     return (
       <div className="flex h-screen items-center justify-center">
         <div className="h-16 w-16 animate-spin rounded-full border-4 border-dashed border-primary"></div>
       </div>

@@ -140,27 +140,14 @@ service cloud.firestore {
     }
 
     /**
-     * Validates a new Race document created within a transaction.
-     * Ensures the `host` is the creator, playerCount is 1, and the creator's
-     * own player document is also being created in the same transaction.
+     * Validates a new Race document.
+     * Ensures the `host` field is set to the creator's username and playerCount is 1.
      */
-    function isCreatingValidRace(raceId) {
-      let raceData = request.resource.data;
-      let isRaceDataValid = raceData.host == request.auth.token.name
-                          && raceData.status == 'waiting'
-                          && raceData.playerCount == 1;
-
-      // Check that the transaction also creates the player subdocument for the host.
-      let playerPath = /databases/$(database)/documents/races/$(raceId)/players/$(request.auth.uid);
-      let createdPlayerData = getAfter(playerPath).data;
-
-      let isPlayerDocValid = existsAfter(playerPath)
-                            && createdPlayerData.id == request.auth.uid
-                            && createdPlayerData.username == request.auth.token.name;
-
-      return isRaceDataValid && isPlayerDocValid;
+    function isCreatingValidRace() {
+      return request.resource.data.host == request.auth.token.name
+          && request.resource.data.status == 'waiting'
+          && request.resource.data.playerCount == 1;
     }
-
 
     /**
      * Validates an update to a Race document.
@@ -251,7 +238,7 @@ service cloud.firestore {
     match /races/{raceId} {
       allow get: if true;
       allow list: if true;
-      allow create: if isSignedIn() && isCreatingValidRace(raceId);
+      allow create: if isSignedIn() && isCreatingValidRace();
       allow update: if isUpdatingValidRace(raceId);
       allow delete: if isRaceHost(raceId);
 
@@ -281,5 +268,3 @@ service cloud.firestore {
     }
   }
 }
-
-    
